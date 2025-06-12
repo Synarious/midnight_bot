@@ -1,0 +1,27 @@
+{
+  "name": "midnight_bot",
+  "version": "1.0.0",
+  "description": "discord bot application",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Synarious/midnight_bot.git"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "discord.js"
+  ],
+  "author": "Synarion",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Synarious/midnight_bot/issues"
+  },
+  "homepage": "https://github.com/Synarious/midnight_bot#readme",
+  "dependencies": {
+    "discord.js": "^14.19.3"
+  }
+}
