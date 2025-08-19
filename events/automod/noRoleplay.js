@@ -1,0 +1,52 @@
+const { Events } = require('discord.js');
+
+// ✅ RP filter only runs in these channels
+const WHITELISTED_CHANNELS = ['1346007514193330178', '663234840530780173', '1363405990866714704'];
+
+// ⛔ Users with these roles are ignored
+const IGNORED_ROLES = [''];
+
+module.exports = {
+    name: Events.MessageCreate,
+    async execute(message) {
+        if (message.author.bot || !message.guild) return;
+
+        // ✅ Only run filter in whitelisted channels
+        if (!WHITELISTED_CHANNELS.includes(message.channel.id)) return;
+
+        // ⛔ Ignore users with bypass roles
+        const member = await message.guild.members.fetch(message.author.id).catch(() => null);
+        if (member && member.roles.cache.some(role => IGNORED_ROLES.includes(role.id))) {
+            return;
+        }
+
+        const content = message.content;
+
+        // 🔍 Check for *RP-style italics*
+        const italicMatches = [...content.matchAll(/\*(?!\*)(.+?)\*(?!\*)/g)];
+        for (const match of italicMatches) {
+            const italic = match[1].trim();
+            if (/^[a-z]{2,}(?:\s[a-z]{2,}){0,3}[.?!]*$/i.test(italic)) {
+                return warnAndDelete(message, `*${italic}*`);
+            }
+        }
+    }
+};
+
+async function warnAndDelete(message, matchedPhrase) {
+    try {
+        await message.delete();
+
+        const warning = await message.channel.send({
+            content: `⚠️ <@${message.author.id}> Keep roleplay to your DMs, follow server roles & help us keep the chat clean!`,
+            allowedMentions: { users: [message.author.id] },
+        });
+
+        setTimeout(() => {
+            warning.delete().catch(() => {});
+        }, 5000);
+
+    } catch (err) {
+        console.error('Failed to delete or warn:', err);
+    }
+}

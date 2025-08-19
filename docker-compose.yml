@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  # The service for your Discord bot
+  bot:
+    build: .
+    restart: always
+    # This waits for the database to be fully ready before starting the bot
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # These lines map the variables from your .env file to the container.
+      - DISCORD_TOKEN=${TOKEN}
+      - CLIENT_ID=${CLIENT_ID}
+      - GUILD_ID=${guildId}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - BOT_PREFIX=${prefix}
+      - BOT_STATUS_MESSAGE=${statusMessage}
+      - LOG_CHANNEL_ID=${logChannelId}
+      - KICK_ROLE_ID=${kickRoleId}
+
+      # Database connection details for the bot's 'pg' client
+      # IMPORTANT: PGHOST is 'db', the name of our database service.
+      - PGHOST=db
+      - PGUSER=${PGUSER}
+      - PGPASSWORD=${PGPASSWORD}
+      - PGDATABASE=${PGDATABASE}
+      - PGPORT=5432
+
+  # The service for the PostgreSQL database
+  db:
+    image: postgres:15-alpine
+    restart: always
+    # These variables are required by the postgres image to initialize itself.
+    # They are read from your .env file.
+    environment:
+      - POSTGRES_USER=${PGUSER}
+      - POSTGRES_PASSWORD=${PGPASSWORD}
+      - POSTGRES_DB=${PGDATABASE}
+    volumes:
+      # Persists database data across restarts
+      - postgres-data:/var/lib/postgresql/data
+      # Runs our init.sql script on first startup
+      - ./db-init:/docker-entrypoint-initdb.d
+    ports:
+      # Optional: Expose port 5432 to your host machine for debugging
+      - "5432:5432"
+    # This healthcheck tells Docker how to know when Postgres is truly ready.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PGUSER} -d ${PGDATABASE}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+# Defines the named volume for persisting database data
+volumes:
+  postgres-data:
