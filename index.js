@@ -1,49 +1,46 @@
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
-const { Client, Collection, GatewayIntentBits, Partials } = require('discord.js');
+const { Client, Collection, GatewayIntentBits, Partials, Events } = require('discord.js');
 
+/**
+ * @type {import('discord-api-types/v10').APIUser}
+ */
+
+console.log('[BOOT] Starting bot...');
+
+// --- Module Imports ---
+const impersonationCheck = require('./modules/impersonationCheck.js');
+const muteHandler = require('./modules/muteHandler.js');
 const token = process.env.DISCORD_TOKEN;
 const database = require('./data/database.js');
+const dbMaintenance = require('./data/dbMaintenance.js');
 const commandHandler = require('./events/commandHandler.js');
 
+
+// --- Client Initialization ---
 const client = new Client({
   intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildModeration,
-    GatewayIntentBits.GuildIntegrations,
-    GatewayIntentBits.GuildWebhooks,
-    GatewayIntentBits.GuildInvites,
-    GatewayIntentBits.GuildVoiceStates,
-    GatewayIntentBits.GuildPresences,
-    GatewayIntentBits.GuildMessageReactions,
-    GatewayIntentBits.GuildMessageTyping,
-    GatewayIntentBits.DirectMessages,
-    GatewayIntentBits.DirectMessageReactions,
-    GatewayIntentBits.DirectMessageTyping,
-    GatewayIntentBits.GuildScheduledEvents,
-    GatewayIntentBits.AutoModerationConfiguration,
-    GatewayIntentBits.AutoModerationExecution
+    GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.MessageContent, GatewayIntentBits.GuildModeration, GatewayIntentBits.GuildIntegrations,
+    GatewayIntentBits.GuildWebhooks, GatewayIntentBits.GuildInvites, GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.GuildPresences, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.GuildMessageTyping,
+    GatewayIntentBits.DirectMessages, GatewayIntentBits.DirectMessageReactions, GatewayIntentBits.DirectMessageTyping,
+    GatewayIntentBits.GuildScheduledEvents, GatewayIntentBits.AutoModerationConfiguration, GatewayIntentBits.AutoModerationExecution
   ],
   partials: [Partials.Message, Partials.Channel, Partials.Reaction]
 });
 
-// Attach the database instance to the client
 client.botStorage = database;
-
-// Register the guildCreate event listener
-client.on('guildCreate', database.onGuildCreate);
-
-// Initialize command collection
 client.commands = new Collection();
 
-// Load commands once on startup
+// --- Dynamic Loader Setup ---
+console.log('[LOADER] Initializing loaders...');
+
+// Command Loader
 commandHandler.loadCommands(client);
 
-// Load Events (supports nested folders)
+// Event Loader
 function getAllEventFiles(dirPath, arrayOfFiles = []) {
   try {
     const files = fs.readdirSync(dirPath);
@@ -57,47 +54,95 @@ function getAllEventFiles(dirPath, arrayOfFiles = []) {
       }
     }
   } catch (err) {
-    console.error(`[❌ ERROR] Failed to read event directory ${dirPath}:`, err);
+    console.error(`[ERROR] [Loader] Failed to read event directory ${dirPath}:`, err);
   }
   return arrayOfFiles;
 }
 
+console.log('[LOADER] Loading application events...');
 const eventsPath = path.join(__dirname, 'events');
 const eventFiles = getAllEventFiles(eventsPath);
-
 for (const filePath of eventFiles) {
   try {
     const event = require(filePath);
-
     if (!event.name || typeof event.execute !== 'function') {
-      console.warn(`[⚠️ WARNING] Skipping invalid event file: ${filePath}`);
+      console.warn(`[WARN] [Loader] Skipping invalid event file: ${filePath}`);
       continue;
     }
-
     if (event.once) {
-      client.once(event.name, (...args) => event.execute(...args).catch(err => {
-        console.error(`[❌ ERROR] Event "${event.name}" (once) failed:`, err);
+      client.once(event.name, (...args) => event.execute(...args, client).catch(err => {
+        console.error(`[ERROR] Event "${event.name}" (once) failed:`, err);
       }));
     } else {
-      client.on(event.name, (...args) => event.execute(...args).catch(err => {
-        console.error(`[❌ ERROR] Event "${event.name}" failed:`, err);
+      client.on(event.name, (...args) => event.execute(...args, client).catch(err => {
+        console.error(`[ERROR] Event "${event.name}" failed:`, err);
       }));
     }
-    console.log(`✅ Loaded event: ${event.name}`);
+    console.log(`  └─ [Event] Loaded: ${event.name}`);
   } catch (err) {
-    console.error(`[❌ ERROR] Failed to load event file ${filePath}:`, err);
+    console.error(`[ERROR] [Loader] Failed to load event file ${filePath}:`, err);
   }
 }
+console.log('[LOADER] Finished loading application events.');
 
-// Attach command handler to messageCreate event
+// --- Custom Module Setup ---
+console.log('[MODULES] Registering custom module event listeners...');
+
+client.on('guildCreate', database.onGuildCreate);
+
+client.once(Events.ClientReady, c => {
+    console.log(`[READY] Client is ready! Logged in as ${c.user.tag}`);
+    console.log('[READY] Performing post-login initializations...');
+    
+    try {
+        impersonationCheck.initialize(c);
+        console.log('  └─ [Module] Initialized: Impersonation Checker');
+    } catch (e) {
+        console.error('  └─ [ERROR] Failed to initialize Impersonation Checker:', e);
+    }
+    try {
+        muteHandler.initialize(c);
+        console.log('  └─ [Module] Initialized: Mute Handler');
+    } catch (e) {
+        console.error('  └─ [ERROR] Failed to initialize Mute Handler:', e);
+    }
+});
+
+client.on(Events.UserUpdate, (oldUser, newUser) => {
+    impersonationCheck[Events.UserUpdate].execute(oldUser, newUser, client);
+});
+
+client.on(Events.GuildMemberUpdate, (oldMember, newMember) => {
+    impersonationCheck[Events.GuildMemberUpdate].execute(oldMember, newMember);
+});
+
+client.on(Events.GuildMemberAdd, member => {
+    impersonationCheck[Events.GuildMemberAdd].execute(member);
+    muteHandler.handleMemberJoin(member);
+});
+
+client.on(Events.GuildMemberRemove, member => {
+    impersonationCheck[Events.GuildMemberRemove].execute(member);
+});
+
 client.on('messageCreate', (message) => {
   commandHandler.execute(client, message);
 });
 
-client.login(token)
-  .then(() => {
-    console.log('✅ Bot logged in successfully.');
-  })
-  .catch(err => {
-    console.error('[❌ ERROR] Bot login failed:', err);
-  });
+console.log('[MODULES] Finished registering custom modules.');
+
+// --- Client Login with DB Maintenance ---
+(async () => {
+  try {
+    console.log('[DBM] Running database schema check...');
+    await dbMaintenance.runDBMaintenance();
+    console.log('[DBM] Database schema check completed.');
+
+    console.log('[DBM] Logging into Discord...');
+    await client.login(token);
+    console.log('[DBM] Login successful.');
+  } catch (err) {
+    console.error('[FATAL] Bot startup failed:', err);
+    process.exit(1);
+  }
+})();

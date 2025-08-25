@@ -1,55 +1,65 @@
 const { REST, Routes } = require('discord.js');
-const { clientId, guildId, token } = require('./config.json');
 const fs = require('node:fs');
 const path = require('node:path');
+require('dotenv').config(); // To load your environment variables
 
+// --- Environment Variables ---
+// Make sure to add these to your .env file!
+const token = process.env.TOKEN;
+const clientId = process.env.clientId;
+const guildId = process.env.guildId; // The ID of the server where you want to test commands
 const commands = [];
-// Grab all the command folders from the commands directory you created earlier
-const foldersPath = path.join(__dirname, 'commands');
-const commandFolders = fs.readdirSync(foldersPath);
+// --- REVISED: Recursive Command Loader ---
+// This function will reliably find every command file, even in nested subfolders.
+function findCommandFiles(directory, commandArray) {
+    const files = fs.readdirSync(directory, { withFileTypes: true });
 
-for (const folder of commandFolders) {
-	// Grab all the command files from the commands directory you created earlier
-	const commandsPath = path.join(foldersPath, folder);
-	const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
-	// Grab the SlashCommandBuilder#toJSON() output of each command's data for deployment
-	for (const file of commandFiles) {
-		const filePath = path.join(commandsPath, file);
-		const command = require(filePath);
-		if ('data' in command && 'execute' in command) {
-			commands.push(command.data.toJSON());
-		} else {
-			console.log(`[WARNING] The command at ${filePath} is missing a required "data" or "execute" property.`);
-		}
-	}
+    for (const file of files) {
+        const filePath = path.join(directory, file.name);
+        if (file.isDirectory()) {
+            findCommandFiles(filePath, commandArray); // Recurse into subdirectories
+        } else if (file.name.endsWith('.js')) {
+            try {
+                const command = require(filePath);
+                if ('data' in command && 'execute' in command) {
+                    commandArray.push(command.data.toJSON());
+                    console.log(`[INFO] Loaded command from: ${filePath}`);
+                } else {
+                    console.warn(`[WARN] The command at ${filePath} is missing a required "data" or "execute" property.`);
+                }
+            } catch (error) {
+                console.error(`[ERROR] Failed to load command file at ${filePath}:`, error);
+            }
+        }
+    }
 }
+
+findCommandFiles(path.join(__dirname, 'commands'), commands);
+// --- End of revised section ---
 
 // Construct and prepare an instance of the REST module
 const rest = new REST().setToken(token);
 
-/* 
-
-// Delete current for guild-based commands
-rest.put(Routes.applicationGuildCommands(clientId, guildId), { body: [] })
-	.then(() => console.log('Successfully deleted all guild commands.'))
-	.catch(console.error);
-
-*/
-
 // and deploy your commands!
 (async () => {
 	try {
-		console.log(`Started refreshing ${commands.length} application (/) commands.`);
-
-		// The put method is used to fully refresh all commands in the guild with the current set
+        // --- Clear existing commands ---
+        console.log(`[DEPLOY] Clearing all existing application (/) commands for guild: ${guildId}`);
+        await rest.put(
+            Routes.applicationGuildCommands(clientId, guildId),
+            { body: [] },
+        );
+        console.log('[SUCCESS] Successfully cleared all guild commands.');
+        
+        // --- Register new commands ---
+		console.log(`[DEPLOY] Started refreshing ${commands.length} application (/) commands for guild: ${guildId}`);
 		const data = await rest.put(
 			Routes.applicationGuildCommands(clientId, guildId),
 			{ body: commands },
 		);
 
-		console.log(`Successfully reloaded ${data.length} application (/) commands.`);
+		console.log(`[SUCCESS] Successfully reloaded ${data.length} application (/) commands for the test guild.`);
 	} catch (error) {
-		// And of course, make sure you catch and log any errors!
-		console.error(error);
+		console.error('[FATAL] Failed to deploy commands:', error);
 	}
 })();

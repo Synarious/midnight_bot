@@ -3,9 +3,53 @@ const { Pool } = require('pg');
 
 const pool = new Pool(); // Uses .env values by default
 
-console.log('[DATABASE] Connected to PostgreSQL');
+console.log('[INFO] [Database] Successfully connected to PostgreSQL.');
+
+// A whitelist of columns that are allowed to be updated by the setup command.
+// This is a security measure to prevent updating sensitive or structural columns like 'guild_id'.
+const updatableColumns = new Set([
+    'cmd_prefix', 'bot_enabled', 'roles_admin', 'roles_mod', 'roles_trust',
+    'roles_untrusted', 'enable_automod', 'enable_openAI', 'mute_roleID',
+    'mute_rolesRemoved', 'mute_immuneUserIDs', 'kick_immuneRoles', 'kick_immuneUserID',
+    'ban_immuneRoles', 'ban_immuneUserID', 'ch_actionLog', 'ch_kickbanLog',
+    'ch_auditLog', 'ch_airlockJoin', 'ch_airlockLeave', 'ch_deletedMessages',
+    'ch_editedMessages', 'ch_automod_AI', 'ch_voiceLog', 'ch_categoryIgnoreAutomod',
+    'ch_channelIgnoreAutomod'
+]);
 
 // === Functions ===
+
+/**
+ * Dynamically updates a specific setting for a guild.
+ * @param {string} guildId The ID of the guild to update.
+ * @param {string} column The name of the column in guild_settings to update.
+ * @param {string|boolean|number} value The new value for the setting.
+ * @returns {Promise<boolean>} True if successful, false otherwise.
+ */
+async function updateGuildSetting(guildId, column, value) {
+  // Security: Ensure the column is in our whitelist of updatable columns.
+  if (!updatableColumns.has(column)) {
+    console.error(`[SECURITY] Blocked attempt to update non-whitelisted column: ${column}`);
+    throw new Error('Invalid setting key.');
+  }
+
+  try {
+    // The 'format' function from 'pg-format' is the safest way to handle dynamic identifiers.
+    // However, since we are using a strict whitelist, direct interpolation is safe here.
+    const query = `
+      INSERT INTO guild_settings (guild_id, ${column})
+      VALUES ($1, $2)
+      ON CONFLICT (guild_id)
+      DO UPDATE SET ${column} = EXCLUDED.${column};
+    `;
+    await pool.query(query, [guildId, value]);
+    return true;
+  } catch (error) {
+    console.error(`[ERROR] [Database] Failed to update setting '${column}' for guild ${guildId}:`, error);
+    return false;
+  }
+}
+
 
 async function getLogChannelId(guildId) {
   const res = await pool.query(
@@ -87,7 +131,7 @@ async function filteringAI(guildId, userId, messageId, channelId, timestamp, use
 }
 
 function onGuildCreate(guild) {
-  console.log(`Joined a new guild: ${guild.name}`);
+  console.log(`[INFO] Joined a new guild: ${guild.name} (${guild.id})`);
 }
 
 async function syncGuildSettings(client) {
@@ -98,18 +142,19 @@ async function syncGuildSettings(client) {
 
     const missingGuilds = botGuilds.filter(id => !dbGuilds.includes(id));
 
-    for (const guildId of missingGuilds) {
-      await pool.query(`
-        INSERT INTO guild_settings (guild_id)
-        VALUES ($1)
-        ON CONFLICT (guild_id) DO NOTHING;
-      `, [guildId]);
-      console.log(`[DATABASE] Added missing guild_id: ${guildId}`);
+    if (missingGuilds.length > 0) {
+        for (const guildId of missingGuilds) {
+          await pool.query(`
+            INSERT INTO guild_settings (guild_id)
+            VALUES ($1)
+            ON CONFLICT (guild_id) DO NOTHING;
+          `, [guildId]);
+          console.log(`[INFO] [Database] Added missing guild settings for: ${guildId}`);
+        }
     }
-
-    console.log(`[DATABASE] syncGuildSettings complete. Added ${missingGuilds.length} missing guild(s).`);
+    console.log(`[INFO] [Database] Guild settings sync complete. Found ${missingGuilds.length} new guild(s).`);
   } catch (error) {
-    console.error('[❌ DATABASE] syncGuildSettings failed:', error);
+    console.error('[ERROR] [Database] Guild settings sync failed:', error);
   }
 }
 
@@ -121,7 +166,7 @@ async function getGuildPrefix(guildId) {
     );
     return res.rows[0]?.cmd_prefix ?? '!';
   } catch (err) {
-    console.error(`[❌ DATABASE] Failed to get prefix for guild ${guildId}:`, err);
+    console.error(`[ERROR] [Database] Failed to get prefix for guild ${guildId}:`, err);
     return '!';
   }
 }
@@ -154,9 +199,51 @@ async function setRolePermissions(guildId, permissionType, roleIDs) {
   );
 }
 
+// === MUTE FUNCTIONS ===
+async function addMutedUser({ guildId, userId, reason, roles, actionedBy, length, expires }) {
+    const timestamp = Date.now().toString();
+    const rolesJson = JSON.stringify(roles);
+    await pool.query(`
+        INSERT INTO muted_users (guild_id, user_id, active, reason, roles, actioned_by, length, expires, timestamp)
+        VALUES ($1, $2, TRUE, $3, $4, $5, $6, $7, $8)
+    `, [guildId, userId, reason, rolesJson, actionedBy, length, expires, timestamp]);
+}
+async function getActiveMute(guildId, userId) {
+    const res = await pool.query(
+        'SELECT * FROM muted_users WHERE guild_id = $1 AND user_id = $2 AND active = TRUE',
+        [guildId, userId]
+    );
+    return res.rows[0] || null;
+}
+async function getAllActiveMutes(client) {
+    const guilds = client.guilds.cache.map(g => g.id);
+    if (guilds.length === 0) return [];
+
+    const res = await pool.query(
+        'SELECT * FROM muted_users WHERE active = TRUE AND guild_id = ANY($1::text[])',
+        [guilds]
+    );
+    return res.rows;
+}
+async function getExpiredMutes() {
+    const now = Date.now().toString();
+    const res = await pool.query(
+        'SELECT * FROM muted_users WHERE active = TRUE AND CAST(expires AS BIGINT) <= $1',
+        [now]
+    );
+    return res.rows;
+}
+async function deactivateMute(muteId) {
+    await pool.query(
+        'UPDATE muted_users SET active = FALSE WHERE mute_id = $1',
+        [muteId]
+    );
+}
+
 // Export all database functions using module.exports
 module.exports = {
   pool,
+  updateGuildSetting, // <-- EXPORT THE NEW FUNCTION
   getLogChannelId,
   setLogChannelId,
   getVoiceLogChannelId,
@@ -169,5 +256,10 @@ module.exports = {
   onGuildCreate,
   syncGuildSettings,
   getGuildSettings,
-  setRolePermissions
+  setRolePermissions,
+  addMutedUser,
+  getActiveMute,
+  getAllActiveMutes,
+  getExpiredMutes,
+  deactivateMute,
 };

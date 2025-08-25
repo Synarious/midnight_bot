@@ -47,9 +47,10 @@ CREATE TABLE IF NOT EXISTS filtered_messages (
 );
 
 CREATE TABLE IF NOT EXISTS muted_users (
-    mute_id SERIAL PRIMARY KEY,
+    mute_id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     guild_id TEXT,
     user_id TEXT,
+    active BOOLEAN,
     reason TEXT,
     roles TEXT,
     actioned_by TEXT,
