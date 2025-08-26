@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ChannelType } = require('discord.js');
-const { updateGuildSetting, getGuildSettings } = require('../../data/database.js');
+const { updateGuildSetting } = require('../../data/database.js');
 
 // Settings are now grouped into categories. Each category will be a subcommand.
 const settingsGroups = {
