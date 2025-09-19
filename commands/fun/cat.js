@@ -1,6 +1,6 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const alex = require('alexflipnote.js');
-const db = require('../../data/database.js'); // Correct relative path
+const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
+const AlexFlipnote = require('alexflipnote.js');
+require('dotenv').config();
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -9,19 +9,21 @@ module.exports = {
 
   async execute(interaction) {
     try {
-      const catImage = await alex.cat(); // Fetch a random cat image
+      const apiKey = process.env.ALEXFLIPNOTE_API_KEY;
+      const alex = new AlexFlipnote({ key: apiKey });
+      const data = await alex.cats();
       const catEmbed = new EmbedBuilder()
         .setColor('#00FF00')
         .setTitle('Random Cat 🐱')
-        .setImage(catImage)
+        .setImage(data.file)
         .setDescription('Here’s a cute cat for you!')
         .setTimestamp()
-        .setFooter({ text: 'Powered by alexflipnote.js' });
+        .setFooter({ text: 'Powered by AlexFlipnote' });
 
-      await interaction.reply({ embeds: [catEmbed] });
+  await interaction.reply({ embeds: [catEmbed] });
     } catch (error) {
       console.error('❌ Error in cat command:', error);
-      await interaction.reply({ content: 'An error occurred while fetching the cat image.', ephemeral: true });
+      await interaction.reply({ content: 'An error occurred while fetching the cat image.', flags: MessageFlags.Ephemeral });
     }
   },
 };

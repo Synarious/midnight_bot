@@ -20,19 +20,20 @@ const commandHandler = require('./events/commandHandler.js');
 
 // --- Client Initialization ---
 const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.MessageContent, GatewayIntentBits.GuildModeration, GatewayIntentBits.GuildIntegrations,
-    GatewayIntentBits.GuildWebhooks, GatewayIntentBits.GuildInvites, GatewayIntentBits.GuildVoiceStates,
-    GatewayIntentBits.GuildPresences, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.GuildMessageTyping,
-    GatewayIntentBits.DirectMessages, GatewayIntentBits.DirectMessageReactions, GatewayIntentBits.DirectMessageTyping,
-    GatewayIntentBits.GuildScheduledEvents, GatewayIntentBits.AutoModerationConfiguration, GatewayIntentBits.AutoModerationExecution
-  ],
-  partials: [Partials.Message, Partials.Channel, Partials.Reaction]
+    intents: [
+        GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.MessageContent, GatewayIntentBits.GuildModeration, GatewayIntentBits.GuildIntegrations,
+        GatewayIntentBits.GuildWebhooks, GatewayIntentBits.GuildInvites, GatewayIntentBits.GuildVoiceStates,
+        GatewayIntentBits.GuildPresences, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.GuildMessageTyping,
+        GatewayIntentBits.DirectMessages, GatewayIntentBits.DirectMessageReactions, GatewayIntentBits.DirectMessageTyping,
+        GatewayIntentBits.GuildScheduledEvents, GatewayIntentBits.AutoModerationConfiguration, GatewayIntentBits.AutoModerationExecution
+    ],
+    partials: [Partials.Message, Partials.Channel, Partials.Reaction]
 });
 
 client.botStorage = database;
-client.commands = new Collection();
+client.commands = new Collection(); // Legacy commands (prefix-based)
+client.slashCommands = new Collection(); // Slash commands
 
 // --- Dynamic Loader Setup ---
 console.log('[LOADER] Initializing loaders...');
@@ -42,46 +43,46 @@ commandHandler.loadCommands(client);
 
 // Event Loader
 function getAllEventFiles(dirPath, arrayOfFiles = []) {
-  try {
-    const files = fs.readdirSync(dirPath);
-    for (const file of files) {
-      const fullPath = path.join(dirPath, file);
-      const stat = fs.statSync(fullPath);
-      if (stat.isDirectory()) {
-        getAllEventFiles(fullPath, arrayOfFiles);
-      } else if (file.endsWith('.js')) {
-        arrayOfFiles.push(fullPath);
-      }
+    try {
+        const files = fs.readdirSync(dirPath);
+        for (const file of files) {
+            const fullPath = path.join(dirPath, file);
+            const stat = fs.statSync(fullPath);
+            if (stat.isDirectory()) {
+                getAllEventFiles(fullPath, arrayOfFiles);
+            } else if (file.endsWith('.js')) {
+                arrayOfFiles.push(fullPath);
+            }
+        }
+    } catch (err) {
+        console.error(`[ERROR] [Loader] Failed to read event directory ${dirPath}:`, err);
     }
-  } catch (err) {
-    console.error(`[ERROR] [Loader] Failed to read event directory ${dirPath}:`, err);
-  }
-  return arrayOfFiles;
+    return arrayOfFiles;
 }
 
 console.log('[LOADER] Loading application events...');
 const eventsPath = path.join(__dirname, 'events');
 const eventFiles = getAllEventFiles(eventsPath);
 for (const filePath of eventFiles) {
-  try {
-    const event = require(filePath);
-    if (!event.name || typeof event.execute !== 'function') {
-      console.warn(`[WARN] [Loader] Skipping invalid event file: ${filePath}`);
-      continue;
+    try {
+        const event = require(filePath);
+        if (!event.name || typeof event.execute !== 'function') {
+            console.warn(`[WARN] [Loader] Skipping invalid event file: ${filePath}`);
+            continue;
+        }
+        if (event.once) {
+            client.once(event.name, (...args) => event.execute(...args, client).catch(err => {
+                console.error(`[ERROR] Event "${event.name}" (once) failed:`, err);
+            }));
+        } else {
+            client.on(event.name, (...args) => event.execute(...args, client).catch(err => {
+                console.error(`[ERROR] Event "${event.name}" failed:`, err);
+            }));
+        }
+        console.log(`  └─ [Event] Loaded: ${event.name}`);
+    } catch (err) {
+        console.error(`[ERROR] [Loader] Failed to load event file ${filePath}:`, err);
     }
-    if (event.once) {
-      client.once(event.name, (...args) => event.execute(...args, client).catch(err => {
-        console.error(`[ERROR] Event "${event.name}" (once) failed:`, err);
-      }));
-    } else {
-      client.on(event.name, (...args) => event.execute(...args, client).catch(err => {
-        console.error(`[ERROR] Event "${event.name}" failed:`, err);
-      }));
-    }
-    console.log(`  └─ [Event] Loaded: ${event.name}`);
-  } catch (err) {
-    console.error(`[ERROR] [Loader] Failed to load event file ${filePath}:`, err);
-  }
 }
 console.log('[LOADER] Finished loading application events.');
 
@@ -93,7 +94,7 @@ client.on('guildCreate', database.onGuildCreate);
 client.once(Events.ClientReady, c => {
     console.log(`[READY] Client is ready! Logged in as ${c.user.tag}`);
     console.log('[READY] Performing post-login initializations...');
-    
+
     try {
         impersonationCheck.initialize(c);
         console.log('  └─ [Module] Initialized: Impersonation Checker');
@@ -126,23 +127,23 @@ client.on(Events.GuildMemberRemove, member => {
 });
 
 client.on('messageCreate', (message) => {
-  commandHandler.execute(client, message);
+    commandHandler.execute(client, message);
 });
 
 console.log('[MODULES] Finished registering custom modules.');
 
 // --- Client Login with DB Maintenance ---
 (async () => {
-  try {
-    console.log('[DBM] Running database schema check...');
-    await dbMaintenance.runDBMaintenance();
-    console.log('[DBM] Database schema check completed.');
+    try {
+        console.log('[DBM] Running database schema check...');
+        await dbMaintenance.runDBMaintenance();
+        console.log('[DBM] Database schema check completed.');
 
-    console.log('[DBM] Logging into Discord...');
-    await client.login(token);
-    console.log('[DBM] Login successful.');
-  } catch (err) {
-    console.error('[FATAL] Bot startup failed:', err);
-    process.exit(1);
-  }
+        console.log('[DBM] Logging into Discord...');
+        await client.login(token);
+        console.log('[DBM] Login successful.');
+    } catch (err) {
+        console.error('[FATAL] Bot startup failed:', err);
+        process.exit(1);
+    }
 })();

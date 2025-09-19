@@ -22,13 +22,13 @@ module.exports = {
     const args = message.content.slice(prefix.length).trim().split(/ +/);
     const commandName = args.shift().toLowerCase();
 
-    if (!client.commands.has(commandName)) return;
-
+    // Only look for legacy commands in prefix-based messages
     const command = client.commands.get(commandName);
 
+    if (!command) return;
+
     try {
-      // Command execution logic remains the same
-      await command.execute(message, args, client);
+        await command.execute(message, args, client);
     } catch (error) {
       console.error(`[❌ ERROR] Error executing command ${commandName}:`, error);
       await message.reply('❌ There was an error executing that command.');
@@ -36,30 +36,54 @@ module.exports = {
   },
 
   loadCommands(client) {
-    const commandsPath = path.join(__dirname, '../commands');
+    // Load slash commands from /commands directory
+    const slashCommandsPath = path.join(__dirname, '../commands');
+    // Load legacy commands from /legacy_commands directory
+    const legacyCommandsPath = path.join(__dirname, '../legacy_commands');
 
-    // This inner function is now synchronous again
-    function readCommands(dir) {
+    // This inner function is now synchronous and handles both command types
+    function readCommands(dir, isSlashCommand = true) {
+      if (!fs.existsSync(dir)) return;
+
       const entries = fs.readdirSync(dir, { withFileTypes: true });
       for (const entry of entries) {
         const fullPath = path.join(dir, entry.name);
         if (entry.isDirectory()) {
-          // Recursive call is synchronous
-          readCommands(fullPath);
+          readCommands(fullPath, isSlashCommand);
         } else if (entry.isFile() && entry.name.endsWith('.js')) {
           try {
-            // Reverted back to the synchronous require() to load command files
             const command = require(fullPath);
 
-            const commandName = command.data?.name ?? command.name;
-
-            if (!commandName || typeof command.execute !== 'function') {
-              console.warn(`[⚠️ WARNING] Invalid command at ${fullPath} — missing 'name' or 'execute'.`);
+            if (typeof command.execute !== 'function') {
+              console.warn(`[⚠️ WARNING] Command at ${fullPath} is missing execute function`);
               continue;
             }
 
-            client.commands.set(commandName, command);
-            console.log(`✅ Loaded command: ${commandName}`);
+            if (isSlashCommand) {
+              // Slash commands must have data property
+              if (!command.data) {
+                console.warn(`[⚠️ WARNING] Slash command at ${fullPath} is missing data property`);
+                continue;
+              }
+              if (client.slashCommands.has(command.data.name)) {
+                console.warn(`[⚠️ WARNING] Duplicate slash command name '${command.data.name}' at ${fullPath}`);
+                continue;
+              }
+              client.slashCommands.set(command.data.name, command);
+              console.log(`✅ Loaded slash command: ${command.data.name}`);
+            } else {
+              // Legacy commands must have name property
+              if (!command.name) {
+                console.warn(`[⚠️ WARNING] Legacy command at ${fullPath} is missing name property`);
+                continue;
+              }
+              if (client.commands.has(command.name)) {
+                console.warn(`[⚠️ WARNING] Duplicate legacy command name '${command.name}' at ${fullPath}`);
+                continue;
+              }
+              client.commands.set(command.name, command);
+              console.log(`✅ Loaded legacy command: ${command.name}`);
+            }
           } catch (err) {
             console.error(`[❌ ERROR] Failed to load command ${fullPath}:`, err);
           }
@@ -67,7 +91,10 @@ module.exports = {
       }
     }
 
-    // Initial call to the synchronous function
-    readCommands(commandsPath);
+    // Load both types of commands
+    console.log('[INFO] Loading slash commands...');
+    readCommands(slashCommandsPath, true);
+    console.log('[INFO] Loading legacy commands...');
+    readCommands(legacyCommandsPath, false);
   }
 };

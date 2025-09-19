@@ -5,10 +5,10 @@ module.exports = {
     async execute(interaction) {
         try {
             if (interaction.isChatInputCommand()) {
-                const command = interaction.client.commands.get(interaction.commandName);
+                const command = interaction.client.slashCommands.get(interaction.commandName);
 
                 if (!command) {
-                    console.error(`No command matching ${interaction.commandName} was found.`);
+                    console.error(`No slash command matching ${interaction.commandName} was found.`);
                     return;
                 }
 
@@ -21,25 +21,28 @@ module.exports = {
 
                 if (customId.startsWith('showFlaggedMessages_')) {
                     const userId = customId.split('_')[1];
-                    const db = interaction.client.botStorage || interaction.client.user_modlog;
-
-                    if (!db) {
-                        return interaction.reply({ content: 'Database not initialized.', ephemeral: true });
-                    }
+                    const dbModule = require('../data/database.js');
 
                     // Fetch last 5 filtered messages
-                    const flaggedMessages = db.prepare(`
-                        SELECT timestamp, channel_id FROM user_modlog
-                        WHERE guild_id = ? AND user_id = ?
+                    const result = await dbModule.pool.query(`
+                        SELECT timestamp, channel_id 
+                        FROM user_modlog
+                        WHERE guild_id = $1 AND user_id = $2
                         ORDER BY timestamp DESC
                         LIMIT 5
-                    `).all(interaction.guild.id, userId);
+                    `, [interaction.guild.id, userId]);
+                    
+                    if (!result.rows.length) {
+                        return interaction.reply({ content: 'No flagged messages found for that user.', ephemeral: true });
+                    }
+                    
+                    const flaggedMessages = result.rows;
 
                     if (!flaggedMessages || flaggedMessages.length === 0) {
                         return interaction.reply({ content: 'No flagged messages found for that user.', ephemeral: true });
                     }
 
-                    const fields = flaggedMessages.map((msg, i) => {
+                    const fields = result.rows.map((msg, i) => {
                         const timeString = new Date(msg.timestamp).toLocaleString();
                         const channelMention = `<#${msg.channel_id}>`;
                         return {

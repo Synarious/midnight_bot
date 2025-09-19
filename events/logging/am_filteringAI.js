@@ -7,7 +7,7 @@ const { getLogChannelId, filteringAI, isOpenAIEnabled } = require('../../data/da
 
 // --- CONFIGURATION ---
 
-const debug = false;
+const debug = false
 const adminRoleId = process.env.MODERATION_ADMIN_ROLE_ID;
 const moderationModel = process.env.OPENAI_MODERATION_MODEL || 'text-moderation-latest';
 
@@ -141,6 +141,13 @@ module.exports = {
         const messageContent = message.content;
         if (!messageContent) {
             if (debug) console.log('[MODERATION] Empty message content, skipping.');
+            return;
+        }
+
+        // Exclude messages that contain the token "$slut" in any casing
+        const lcContent = messageContent.toLowerCase();
+        if (lcContent.includes('$slut')) {
+            if (debug) console.log('[MODERATION] Message contains excluded token "$slut", skipping OpenAI moderation.');
             return;
         }
 

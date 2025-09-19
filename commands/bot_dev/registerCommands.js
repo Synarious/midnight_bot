@@ -1,3 +1,4 @@
+const { SlashCommandBuilder } = require('@discordjs/builders');
 const { REST, Routes } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
@@ -6,18 +7,22 @@ const path = require('path');
 const OWNER_ID = '134118092082118657';
 
 module.exports = {
-  name: 'registercommands',
-  description: 'Manually registers all slash commands for this guild (owner only)',
+  data: new SlashCommandBuilder()
+    .setName('registercommands')
+    .setDescription('Manually registers all slash commands for this guild (owner only)'),
 
-  // Executes on message, params: message, args, client
-  async execute(message, args, client) {
+  async execute(interaction) {
+    if (interaction.user.id !== OWNER_ID) {
+      return interaction.reply({ content: '❌ Only the bot owner can use this command.', ephemeral: true });
+    }
     if (message.author.id !== OWNER_ID) {
       return message.reply('❌ Only the bot owner can use this command.');
     }
 
+    const client = interaction.client;
     const clientId = client.user.id;
     const token = client.token;
-    const guildId = message.guild.id;
+    const guildId = interaction.guild.id;
 
     const commands = [];
     const commandsBasePath = path.join(__dirname, '..');
@@ -46,6 +51,8 @@ module.exports = {
       }
     }
 
+    await interaction.deferReply({ ephemeral: true });
+
     const rest = new REST({ version: '10' }).setToken(token);
 
     try {
@@ -54,10 +61,10 @@ module.exports = {
         { body: commands }
       );
       console.log(`✅ Successfully registered ${commands.length} slash commands to guild ${guildId}.`);
-      return message.reply(`✅ Successfully registered ${commands.length} slash commands to **${message.guild.name}**.`);
+      return interaction.editReply(`✅ Successfully registered ${commands.length} slash commands to **${interaction.guild.name}**.`);
     } catch (error) {
       console.error('[❌ ERROR] Failed to register commands:', error);
-      return message.reply('❌ Failed to register commands. Check console logs.');
+      return interaction.editReply('❌ Failed to register commands. Check console logs.');
     }
   },
 };

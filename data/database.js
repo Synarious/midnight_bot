@@ -240,23 +240,63 @@ async function deactivateMute(muteId) {
     );
 }
 
-// Export all database functions using module.exports
+// Helper for converting ? placeholders to $1, $2, etc.
+function convertPlaceholders(sql) {
+  let paramCount = 0;
+  return sql.replace(/\?/g, () => `$${++paramCount}`);
+}
+
+// SQLite-style prepared statement compatibility wrapper
+function prepareStatement(sql) {
+  const pgSql = convertPlaceholders(sql);
+  
+  return {
+    get: async (...params) => {
+      const result = await pool.query(pgSql, params);
+      return result.rows[0];
+    },
+    all: async (...params) => {
+      const result = await pool.query(pgSql, params);
+      return result.rows;
+    },
+    run: async (...params) => {
+      return pool.query(pgSql, params);
+    }
+  };
+}
+
+// Export database pool and functions
 module.exports = {
+  // Core database connection
   pool,
-  updateGuildSetting, // <-- EXPORT THE NEW FUNCTION
+  
+  // Settings management
+  updateGuildSetting,
+  getGuildSettings,
+  setRolePermissions,
+  
+  // Channel functions
   getLogChannelId,
   setLogChannelId,
   getVoiceLogChannelId,
-  getGuildPrefix,
   getJoinChannelId,
   getLeaveChannelId,
-  isOpenAIEnabled,
+  
+  // Prefix management
+  getGuildPrefix,
   setGuildPrefix,
+  
+  // Feature toggles
+  isOpenAIEnabled,
+  
+  // AI/Filtering
   filteringAI,
+  
+  // Guild management
   onGuildCreate,
   syncGuildSettings,
-  getGuildSettings,
-  setRolePermissions,
+  
+  // Mute system
   addMutedUser,
   getActiveMute,
   getAllActiveMutes,

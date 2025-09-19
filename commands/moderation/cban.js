@@ -1,6 +1,6 @@
 const { SlashCommandBuilder } = require('@discordjs/builders');
 const { EmbedBuilder } = require('discord.js');
-const { db } = require('../../data/database.js');
+const { pool } = require('../../data/database.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -22,12 +22,17 @@ module.exports = {
         const userToBan = interaction.options.getUser('user');
         const reason = interaction.options.getString('reason') || 'No reason provided';
 
-        const settings = db.prepare('SELECT * FROM guild_settings WHERE guild_id = ?').get(guild.id);
-        if (!settings) {
+        const result = await pool.query('SELECT roles_admin, roles_mod, ch_actionLog FROM guild_settings WHERE guild_id = $1', [guild.id]);
+        if (!result.rows[0]) {
             return interaction.reply({ content: 'Guild settings not found in the database.', ephemeral: true });
         }
 
-        const { roles_admin, roles_mod, ch_actionLog } = settings;
+        const settings = result.rows[0];
+        const roles_admin = Array.isArray(settings.roles_admin) ? settings.roles_admin : 
+                          (settings.roles_admin ? JSON.parse(settings.roles_admin) : []);
+        const roles_mod = Array.isArray(settings.roles_mod) ? settings.roles_mod :
+                         (settings.roles_mod ? JSON.parse(settings.roles_mod) : []);
+        const ch_actionLog = settings.ch_actionlog || settings.ch_actionlog;
 
         const hasPermission = member.roles.cache.some(role =>
             roles_admin.includes(role.id) || roles_mod.includes(role.id)
