@@ -27,6 +27,12 @@ module.exports = {
       return interaction.reply({ content: 'Guild settings not found. Please run the setup command.', ephemeral: true });
     }
 
+    // Bot permission check
+    const botMember = guild.members.me;
+    if (!botMember?.permissions.has(PermissionsBitField.Flags.BanMembers)) {
+      return interaction.reply({ content: 'I do not have permission to ban members.', ephemeral: true });
+    }
+
     const hasAdminPerm = member.permissions.has(PermissionsBitField.Flags.Administrator);
     const adminRoles = JSON.parse(settings.roles_admin || '[]');
     const modRoles = JSON.parse(settings.roles_mod || '[]');
@@ -66,13 +72,23 @@ module.exports = {
         content: `Successfully banned **${userToBan.tag}** (${userToBan.id}).`,
       });
 
-       // --- Logging ---
-      // Prioritize the guild-specific channel, but fall back to the global one from .env
-      const logChannelId = settings.ch_actionLog || process.env.LOG_CHANNEL_ID;
-
-      if (logChannelId) {
+      // --- Logging ---
+      // Use guild-specific action log from DB only (do not fallback to env)
+      const logChannelId = settings.ch_actionLog;
+      if (!logChannelId) {
+        console.error(`[ERROR] No action log configured for guild ${guild.id}. Cannot log ban for ${userToBan.id}`);
+      } else {
         const logChannel = await guild.channels.fetch(logChannelId).catch(() => null);
-        if (logChannel) {
+        if (!logChannel) {
+          console.error(`[ERROR] Configured action log channel ${logChannelId} for guild ${guild.id} not found or inaccessible.`);
+          try {
+            if (interaction.deferred || interaction.replied) {
+              await interaction.followUp?.({ content: 'Ban recorded but failed to send to action log channel (configured channel missing).', ephemeral: true }).catch(() => {});
+            } else {
+              await interaction.reply?.({ content: 'Ban recorded but failed to send to action log channel (configured channel missing).', ephemeral: true }).catch(() => {});
+            }
+          } catch (_) {}
+        } else {
           const embed = new EmbedBuilder()
             .setTitle('User Banned')
             .setColor('#FF0000') // Red
@@ -83,7 +99,9 @@ module.exports = {
             )
             .setTimestamp();
 
-          await logChannel.send({ embeds: [embed] });
+          await logChannel.send({ embeds: [embed] }).catch(err => {
+            console.error(`[ERROR] Failed to send ban log to channel ${logChannelId} for guild ${guild.id}:`, err);
+          });
         }
       }
 

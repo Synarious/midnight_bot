@@ -56,7 +56,8 @@ module.exports = {
 
         await interaction.deferReply({ ephemeral: true });
 
-        const target = interaction.options.getMember('user');
+        const userOption = interaction.options.getUser('user');
+        const target = userOption ? await interaction.guild.members.fetch(userOption.id).catch(() => null) : null;
         const durationStr = interaction.options.getString('duration');
         const reason = interaction.options.getString('reason') || 'No reason provided.';
         const executor = interaction.member;
@@ -91,6 +92,11 @@ module.exports = {
         const isAlreadyMuted = await getActiveMute(interaction.guild.id, target.id);
         if (isAlreadyMuted) {
             return interaction.editReply(`${target.user.tag} is already muted.`);
+        }
+
+        // Double-check: verify user doesn't already have mute role
+        if (target.roles.cache.has(settings.mute_roleid)) {
+            return interaction.editReply(`${target.user.tag} already has the mute role but no active mute record. Please contact an administrator.`);
         }
 
         const adminRoles = JSON.parse(settings.roles_admin || '[]');
@@ -135,6 +141,7 @@ module.exports = {
             .map(role => role.id);
         
         try {
+            // Remove all roles except @everyone and add mute role
             await target.roles.set([muteRole.id]);
 
             await addMutedUser({

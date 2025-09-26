@@ -3,12 +3,11 @@
 const axios = require('axios');
 const { EmbedBuilder } = require('discord.js');
 require('dotenv').config();
-const { getLogChannelId, filteringAI, isOpenAIEnabled } = require('../../data/database.js');
+const { getLogChannelId, filteringAI, isOpenAIEnabled, getGuildSettings } = require('../../data/database.js');
 
 // --- CONFIGURATION ---
 
-const debug = false
-const adminRoleId = process.env.MODERATION_ADMIN_ROLE_ID;
+const debug = false;
 const moderationModel = process.env.OPENAI_MODERATION_MODEL || 'text-moderation-latest';
 
 const softCategoryThresholds = {
@@ -131,10 +130,12 @@ module.exports = {
             return;
         }
 
-        const client = message.client;
-        const db = client.botStorage;
-        if (!db) {
-            console.error('Database not initialized on client');
+        // Get guild settings for admin roles
+        let guildSettings = null;
+        try {
+            guildSettings = await getGuildSettings(message.guild.id);
+        } catch (error) {
+            console.error('[MODERATION] Failed to get guild settings:', error);
             return;
         }
 
@@ -217,7 +218,14 @@ module.exports = {
             try {
                 const logChannel = await message.guild.channels.fetch(logChannelId);
                 if (logChannel) {
-                    const mention = severity === 'hard' && adminRoleId ? `<@&${adminRoleId}> ` : '';
+                    // Get admin roles from guild settings for mentions
+                    let mention = '';
+                    if (severity === 'hard' && guildSettings?.roles_admin) {
+                        const adminRoles = JSON.parse(guildSettings.roles_admin || '[]');
+                        if (adminRoles.length > 0) {
+                            mention = adminRoles.map(roleId => `<@&${roleId}>`).join(' ') + ' ';
+                        }
+                    }
                     await logChannel.send({ content: mention, embeds: [embed] });
                     if (debug) console.log('[MODERATION] Sent log message successfully.');
                 }
@@ -248,15 +256,19 @@ module.exports = {
 
             if (debug) console.log('[MODERATION] Storing user infractions:', userInfractions);
 
-            filteringAI(
-                message.guild.id,
-                message.author.id,
-                message.id,
-                message.channel.id,
-                new Date().toISOString(),
-                userInfractions,
-                messageContent
-            );
+            try {
+                await filteringAI(
+                    message.guild.id,
+                    message.author.id,
+                    message.id,
+                    message.channel.id,
+                    new Date().toISOString(),
+                    userInfractions,
+                    messageContent
+                );
+            } catch (error) {
+                console.error('[MODERATION] Failed to store infractions in database:', error);
+            }
         }
     },
 };

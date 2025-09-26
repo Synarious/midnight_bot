@@ -128,6 +128,45 @@ async function runDBMaintenance() {
     // The check in initSQL has been updated to include it, but this is good practice.
     await checkAndAddColumn(client, 'muted_users', 'active', 'BOOLEAN');
 
+    // Add invite tracking table with comprehensive schema
+    const inviteLogTableQuery = `
+      CREATE TABLE IF NOT EXISTS invite_log (
+        log_id SERIAL PRIMARY KEY,
+        guild_id TEXT NOT NULL,
+        user_id TEXT,
+        utc_time TIMESTAMP NOT NULL,
+        invite_code TEXT NOT NULL,
+        invite_creator TEXT NOT NULL,
+        creator_id TEXT NOT NULL,
+        creator_name TEXT NOT NULL,
+        channel_id TEXT NOT NULL,
+        channel_name TEXT NOT NULL,
+        max_uses INTEGER DEFAULT 0,
+        temporary BOOLEAN DEFAULT FALSE,
+        expires_at TIMESTAMP,
+        uses_count INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+    await client.query(inviteLogTableQuery);
+    console.log('[DB] [MIGRATION] invite_log table ensured.');
+
+    // Add columns to existing invite_log table if they don't exist
+    await checkAndAddColumn(client, 'invite_log', 'invite_code', 'TEXT');
+    await checkAndAddColumn(client, 'invite_log', 'creator_id', 'TEXT NOT NULL DEFAULT \'\'');
+    await checkAndAddColumn(client, 'invite_log', 'creator_name', 'TEXT NOT NULL DEFAULT \'\'');
+    await checkAndAddColumn(client, 'invite_log', 'channel_id', 'TEXT NOT NULL DEFAULT \'\'');
+    await checkAndAddColumn(client, 'invite_log', 'channel_name', 'TEXT NOT NULL DEFAULT \'\'');
+    await checkAndAddColumn(client, 'invite_log', 'max_uses', 'INTEGER DEFAULT 0');
+    await checkAndAddColumn(client, 'invite_log', 'temporary', 'BOOLEAN DEFAULT FALSE');
+    await checkAndAddColumn(client, 'invite_log', 'expires_at', 'TIMESTAMP');
+    await checkAndAddColumn(client, 'invite_log', 'uses_count', 'INTEGER DEFAULT 0');
+
+    // Add new invite tracking columns to guild_settings
+    await checkAndAddColumn(client, 'guild_settings', 'ch_inviteLog', 'TEXT');
+    await checkAndAddColumn(client, 'guild_settings', 'ch_permanentInvites', 'TEXT');
+    await checkAndAddColumn(client, 'guild_settings', 'ch_memberJoin', 'TEXT');
+
 
     // --- End of schema changes ---
     console.log('[DB] Schema migration check finished.');

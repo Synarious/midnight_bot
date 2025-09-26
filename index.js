@@ -12,6 +12,7 @@ console.log('[BOOT] Starting bot...');
 // --- Module Imports ---
 const impersonationCheck = require('./modules/impersonationCheck.js');
 const muteHandler = require('./modules/muteHandler.js');
+const inviteTracker = require('./modules/inviteTracker.js');
 const token = process.env.DISCORD_TOKEN;
 const database = require('./data/database.js');
 const dbMaintenance = require('./data/dbMaintenance.js');
@@ -107,6 +108,12 @@ client.once(Events.ClientReady, c => {
     } catch (e) {
         console.error('  └─ [ERROR] Failed to initialize Mute Handler:', e);
     }
+    try {
+        inviteTracker.initialize(c);
+        console.log('  └─ [Module] Initialized: Invite Tracker');
+    } catch (e) {
+        console.error('  └─ [ERROR] Failed to initialize Invite Tracker:', e);
+    }
 });
 
 client.on(Events.UserUpdate, (oldUser, newUser) => {
@@ -120,10 +127,20 @@ client.on(Events.GuildMemberUpdate, (oldMember, newMember) => {
 client.on(Events.GuildMemberAdd, member => {
     impersonationCheck[Events.GuildMemberAdd].execute(member);
     muteHandler.handleMemberJoin(member);
+    inviteTracker.handleMemberJoin(member);
 });
 
 client.on(Events.GuildMemberRemove, member => {
     impersonationCheck[Events.GuildMemberRemove].execute(member);
+    inviteTracker.handleMemberLeave(member);
+});
+
+client.on(Events.InviteCreate, invite => {
+    inviteTracker.handleInviteCreate(invite);
+});
+
+client.on(Events.GuildCreate, guild => {
+    inviteTracker.handleGuildCreate(guild);
 });
 
 client.on('messageCreate', (message) => {

@@ -45,6 +45,9 @@ const settingsGroups = {
             ch_editedMessages: { type: 'channel', description: 'Log for edited messages' },
             ch_automod_AI: { type: 'channel', description: 'Log for AI AutoMod flags' },
             ch_voiceLog: { type: 'channel', description: 'Log for voice channel activity' },
+            ch_inviteLog: { type: 'channel', description: 'Log channel for invite creation and usage' },
+            ch_permanentInvites: { type: 'channel', description: 'Channel for permanent server invites' },
+            ch_memberJoin: { type: 'channel', description: 'Channel for member join notifications with invite tracking' },
         }
     },
     automod_ignore: {

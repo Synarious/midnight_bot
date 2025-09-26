@@ -28,12 +28,12 @@ module.exports = {
       return interaction.reply({ content: 'Guild settings not found in the database.', ephemeral: true });
     }
 
-    const settings = result.rows[0];
-    const roles_admin = Array.isArray(settings.roles_admin) ? settings.roles_admin : 
-                       (settings.roles_admin ? JSON.parse(settings.roles_admin) : []);
-    const roles_mod = Array.isArray(settings.roles_mod) ? settings.roles_mod :
-                     (settings.roles_mod ? JSON.parse(settings.roles_mod) : []);
-    const ch_actionLog = settings.ch_actionlog || settings.ch_actionlog;
+  const settings = result.rows[0];
+  const roles_admin = Array.isArray(settings.roles_admin) ? settings.roles_admin : 
+             (settings.roles_admin ? JSON.parse(settings.roles_admin) : []);
+  const roles_mod = Array.isArray(settings.roles_mod) ? settings.roles_mod :
+           (settings.roles_mod ? JSON.parse(settings.roles_mod) : []);
+  const ch_actionLog = settings.ch_actionLog;
 
     // Check if user has required permissions
     const hasPermission = member.roles.cache.some(role => 
@@ -47,13 +47,19 @@ module.exports = {
       });
     }
 
-    // Check if the user can be banned
+    // Bot permission check
     const botMember = guild.members.me;
     if (!botMember?.permissions.has('BanMembers')) {
       return interaction.reply({ 
         content: 'I do not have permission to ban members.', 
         ephemeral: true 
       });
+    }
+
+    // Bannable check
+    const memberToBan = await guild.members.fetch(userToBan.id).catch(() => null);
+    if (memberToBan && !memberToBan.bannable) {
+      return interaction.reply({ content: 'I cannot ban that user. They may have a higher role than me or I lack ban permissions.', ephemeral: true });
     }
 
     try {
@@ -77,11 +83,24 @@ module.exports = {
       // Send success message
       await interaction.reply({ embeds: [banEmbed] });
 
-      // Log the action if a log channel is set
-      if (ch_actionLog) {
-        const logChannel = guild.channels.cache.get(ch_actionLog);
-        if (logChannel) {
-          await logChannel.send({ embeds: [banEmbed] });
+      // Log the action using DB-configured channel only
+      if (!ch_actionLog) {
+        console.error(`[ERROR] No action log configured for guild ${guild.id}. Cannot log ccban for ${userToBan.id}`);
+      } else {
+        const logChannel = await guild.channels.fetch(ch_actionLog).catch(() => null);
+        if (!logChannel) {
+          console.error(`[ERROR] Configured action log channel ${ch_actionLog} for guild ${guild.id} not found or inaccessible.`);
+          try {
+            if (interaction.deferred || interaction.replied) {
+              await interaction.followUp?.({ content: 'Ban recorded but failed to send to action log channel (configured channel missing).', ephemeral: true }).catch(() => {});
+            } else {
+              await interaction.reply?.({ content: 'Ban recorded but failed to send to action log channel (configured channel missing).', ephemeral: true }).catch(() => {});
+            }
+          } catch (_) {}
+        } else {
+          await logChannel.send({ embeds: [banEmbed] }).catch(err => {
+            console.error(`[ERROR] Failed to send ccban log to channel ${ch_actionLog} for guild ${guild.id}:`, err);
+          });
         }
       }
     } catch (error) {

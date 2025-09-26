@@ -14,7 +14,7 @@ const updatableColumns = new Set([
     'ban_immuneRoles', 'ban_immuneUserID', 'ch_actionLog', 'ch_kickbanLog',
     'ch_auditLog', 'ch_airlockJoin', 'ch_airlockLeave', 'ch_deletedMessages',
     'ch_editedMessages', 'ch_automod_AI', 'ch_voiceLog', 'ch_categoryIgnoreAutomod',
-    'ch_channelIgnoreAutomod'
+    'ch_channelIgnoreAutomod', 'ch_inviteLog', 'ch_permanentInvites', 'ch_memberJoin'
 ]);
 
 // === Functions ===
