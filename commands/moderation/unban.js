@@ -31,15 +31,10 @@ module.exports = {
         }
 
         const hasAdminPerm = member.permissions.has(PermissionsBitField.Flags.Administrator);
-        const adminRoles = JSON.parse(settings.roles_admin || '[]');
-        const modRoles = JSON.parse(settings.roles_mod || '[]');
+        const hasPermission = hasAdminPerm || await db.hasPermissionLevel(guild.id, member.id, 'admin', member.roles.cache);
 
-        const hasRolePerm = member.roles.cache.some(role =>
-            adminRoles.includes(role.id) || modRoles.includes(role.id)
-        );
-
-        if (!hasAdminPerm && !hasRolePerm) {
-            return interaction.reply({ content: 'You do not have permission to unban users.', ephemeral: true });
+        if (!hasPermission) {
+            return interaction.reply({ content: 'You do not have permission to unban users. Requires admin level or higher.', ephemeral: true });
         }
 
             // Resolve target — support both real Interaction.options and the pseudo adapter's args array
@@ -103,7 +98,7 @@ module.exports = {
             await interaction.editReply({ content: `Successfully unbanned <@${userId}>.` });
 
                     // Logging: require guild-configured action log channel
-                    const logChannelId = settings.ch_actionLog;
+                    const logChannelId = settings.ch_actionlog ?? settings.ch_actionLog;
                     if (!logChannelId) {
                         console.error(`[ERROR] No action log configured for guild ${guild.id}. Cannot log unban for ${userId}`);
                     } else {

@@ -17,8 +17,11 @@ CREATE TABLE IF NOT EXISTS guild_settings (
   guild_id TEXT PRIMARY KEY,
   cmd_prefix TEXT DEFAULT '!',
   bot_enabled BOOLEAN DEFAULT TRUE,
+  roles_super_admin TEXT DEFAULT '[]',
   roles_admin TEXT DEFAULT '[]',
   roles_mod TEXT DEFAULT '[]',
+  roles_jr_mod TEXT DEFAULT '[]',
+  roles_helper TEXT DEFAULT '[]',
   roles_trust TEXT DEFAULT '[]',
   roles_untrusted TEXT DEFAULT '[]',
   enable_automod BOOLEAN DEFAULT TRUE,
@@ -102,7 +105,8 @@ async function checkAndAddColumn(client, tableName, columnName, columnDefinition
     FROM information_schema.columns
     WHERE table_name = $1 AND column_name = $2;
   `;
-  const { rowCount } = await client.query(checkQuery, [tableName, columnName]);
+  // Always check for the lowercase version of the column name
+  const { rowCount } = await client.query(checkQuery, [tableName, columnName.toLowerCase()]);
 
   if (rowCount === 0) {
     console.log(`[DB] [MIGRATION] Column "${columnName}" not found in "${tableName}". Adding it...`);
@@ -166,6 +170,11 @@ async function runDBMaintenance() {
     await checkAndAddColumn(client, 'guild_settings', 'ch_inviteLog', 'TEXT');
     await checkAndAddColumn(client, 'guild_settings', 'ch_permanentInvites', 'TEXT');
     await checkAndAddColumn(client, 'guild_settings', 'ch_memberJoin', 'TEXT');
+
+    // Add 5-tier permission system columns
+    await checkAndAddColumn(client, 'guild_settings', 'roles_super_admin', 'TEXT DEFAULT \'[]\'');
+    await checkAndAddColumn(client, 'guild_settings', 'roles_jr_mod', 'TEXT DEFAULT \'[]\'');
+    await checkAndAddColumn(client, 'guild_settings', 'roles_helper', 'TEXT DEFAULT \'[]\'');
 
 
     // --- End of schema changes ---

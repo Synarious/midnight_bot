@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
-const { getGuildSettings, addMutedUser, getActiveMute } = require('../../data/database.js');
+const db = require('../../data/database.js');
+const { getGuildSettings, addMutedUser, getActiveMute } = db;
 
 /**
  * Parses a duration string (e.g., "1d 12h") into milliseconds.
@@ -99,26 +100,29 @@ module.exports = {
             return interaction.editReply(`${target.user.tag} already has the mute role but no active mute record. Please contact an administrator.`);
         }
 
-        const adminRoles = JSON.parse(settings.roles_admin || '[]');
-        const modRoles = JSON.parse(settings.roles_mod || '[]');
         const immuneUsers = JSON.parse(settings.mute_immuneuserids || '[]');
         
-        const executorIsAdmin = executor.roles.cache.some(r => adminRoles.includes(r.id));
-        const executorIsMod = executor.roles.cache.some(r => modRoles.includes(r.id));
-        const targetIsAdmin = target.roles.cache.some(r => adminRoles.includes(r.id));
-        const targetIsMod = target.roles.cache.some(r => modRoles.includes(r.id));
+        const hasAdminPerm = executor.permissions.has(PermissionFlagsBits.Administrator);
+        const hasPermission = hasAdminPerm || await db.hasPermissionLevel(interaction.guild.id, executor.id, 'helper', executor.roles.cache);
+        
+        if (!hasPermission) {
+            return interaction.editReply("You do not have permission to use this command. Requires helper level or higher.");
+        }
 
-        if (!executorIsAdmin && !executorIsMod) {
-            return interaction.editReply("You do not have permission to use this command.");
+        // Get permission levels for additional checks
+        const executorLevel = await db.getUserPermissionLevel(interaction.guild.id, executor.id, executor.roles.cache);
+        const targetLevel = await db.getUserPermissionLevel(interaction.guild.id, target.id, target.roles.cache);
+        
+        // Prevent lower level users from muting higher level users
+        const levelHierarchy = ['helper', 'jr_mod', 'mod', 'admin', 'super_admin'];
+        const executorIndex = levelHierarchy.indexOf(executorLevel);
+        const targetIndex = levelHierarchy.indexOf(targetLevel);
+        
+        if (targetIndex >= executorIndex && targetIndex !== -1 && !hasAdminPerm) {
+            return interaction.editReply("You cannot mute someone with an equal or higher permission level.");
         }
         if (immuneUsers.includes(target.id)) {
             return interaction.editReply("This user is immune from mutes.");
-        }
-        if (targetIsAdmin && !executorIsAdmin) { // Mod trying to mute Admin
-            return interaction.editReply("Moderators cannot mute Administrators.");
-        }
-        if (targetIsMod && !executorIsAdmin) { // Mod trying to mute Mod
-            return interaction.editReply("Moderators cannot mute other Moderators.");
         }
 
 

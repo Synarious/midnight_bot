@@ -24,21 +24,32 @@ const clientId = process.env.CLIENT_ID; // Discord application ID
 const commands = [];
 // --- REVISED: Slash Command Loader ---
 // This function will reliably find and validate slash commands, even in nested subfolders.
-function findSlashCommands(directory, commandArray) {
+function findSlashCommands(directory, commandArray, seenNames = new Set()) {
     const files = fs.readdirSync(directory, { withFileTypes: true });
-    const seenNames = new Set();
 
     for (const file of files) {
         const filePath = path.join(directory, file.name);
         if (file.isDirectory()) {
-            findSlashCommands(filePath, commandArray); // Recurse into subdirectories
+            findSlashCommands(filePath, commandArray, seenNames); // Recurse into subdirectories
         } else if (file.name.endsWith('.js')) {
             try {
                 const command = require(filePath);
-                
-                // Strict validation for slash commands
-                if (!command.data?.name || !command.data?.description || typeof command.execute !== 'function') {
-                    console.warn(`[WARN] Invalid slash command at ${filePath} - missing required properties`);
+                if (!command) continue;
+
+                const isSlash = command.data?.name && typeof command.execute === 'function';
+                const isLegacy = command.name && typeof command.execute === 'function' && !command.data;
+
+                if (!isSlash) {
+                    if (isLegacy) {
+                        console.log(`[SKIP] Legacy/prefix command skipped during slash deployment: ${command.name} (${filePath})`);
+                    } else {
+                        console.warn(`[WARN] Command at ${filePath} is missing slash command properties; skipping.`);
+                    }
+                    continue;
+                }
+
+                if (!command.data?.description) {
+                    console.warn(`[WARN] Slash command '${command.data.name}' at ${filePath} is missing a description; skipping.`);
                     continue;
                 }
 

@@ -40,7 +40,13 @@ module.exports = {
 
             const guildId = interaction.guild.id;
 
-            await interaction.deferReply();
+            // Handle deferReply for legacy commands
+            if (interaction.deferReply) {
+                await interaction.deferReply();
+            } else {
+                // For legacy commands, send initial message
+                await interaction.reply('🔍 Loading invite statistics...');
+            }
 
             let query, params, embedTitle, embedDescription;
 
@@ -49,63 +55,73 @@ module.exports = {
             
             if (normalizedFilter === 'recent' || normalizedFilter === 'r') {
                 query = `
-                    SELECT 
+                    SELECT DISTINCT ON (invite_code)
                         invite_code, creator_id, creator_name, channel_id, channel_name,
-                        max_uses, temporary, expires_at, created_at, uses_count
+                        max_uses, temporary, expires_at, utc_time as actual_created_time, uses_count
                     FROM invite_log 
-                    WHERE guild_id = $1 AND created_at >= NOW() - INTERVAL '7 days'
-                    ORDER BY created_at DESC 
+                    WHERE guild_id = $1 AND invite_code != 'UNKNOWN' 
+                    AND utc_time >= NOW() - INTERVAL '7 days'
+                    ORDER BY invite_code, utc_time DESC 
                     LIMIT 20
                 `;
                 params = [guildId];
                 embedTitle = '📊 Recent Invites (Last 7 Days)';
-                embedDescription = 'Showing the 20 most recently created invites';
+                embedDescription = 'Showing the 20 most recently created unique invites';
             } else if (normalizedFilter === 'active' || normalizedFilter === 'a') {
                 query = `
-                    SELECT 
+                    SELECT DISTINCT ON (invite_code)
                         invite_code, creator_id, creator_name, channel_id, channel_name,
-                        max_uses, temporary, expires_at, created_at, uses_count
+                        max_uses, temporary, expires_at, utc_time as actual_created_time, uses_count
                     FROM invite_log 
-                    WHERE guild_id = $1 
+                    WHERE guild_id = $1 AND invite_code != 'UNKNOWN'
                     AND (expires_at IS NULL OR expires_at > NOW())
                     AND (max_uses = 0 OR uses_count < max_uses)
-                    ORDER BY created_at DESC 
+                    ORDER BY invite_code, utc_time DESC 
                     LIMIT 20
                 `;
                 params = [guildId];
                 embedTitle = '✅ Active Invites';
-                embedDescription = 'Showing invites that are currently valid and usable';
+                embedDescription = 'Showing unique invites that are currently valid and usable';
             } else if (normalizedFilter === 'popular' || normalizedFilter === 'p' || normalizedFilter === 'most') {
                 query = `
-                    SELECT 
+                    SELECT DISTINCT ON (invite_code)
                         invite_code, creator_id, creator_name, channel_id, channel_name,
-                        max_uses, temporary, expires_at, created_at, uses_count
+                        max_uses, temporary, expires_at, utc_time as actual_created_time, 
+                        MAX(uses_count) as uses_count
                     FROM invite_log 
-                    WHERE guild_id = $1 AND uses_count > 0
-                    ORDER BY uses_count DESC, created_at DESC 
+                    WHERE guild_id = $1 AND invite_code != 'UNKNOWN' AND uses_count > 0
+                    GROUP BY invite_code, creator_id, creator_name, channel_id, channel_name,
+                             max_uses, temporary, expires_at, utc_time
+                    ORDER BY uses_count DESC, utc_time DESC 
                     LIMIT 15
                 `;
                 params = [guildId];
                 embedTitle = '🔥 Most Used Invites';
-                embedDescription = 'Showing invites ranked by usage count';
+                embedDescription = 'Showing unique invites ranked by usage count';
             } else if (normalizedFilter === 'user' || normalizedFilter === 'u') {
                 if (!targetUser) {
-                    return await interaction.editReply({
-                        content: '❌ Please specify a user when using the "user" filter.\nUsage: `!invites-check user @user` or `!invites-check user 123456789`'
-                    });
+                    // Send error message based on interaction type
+                const errorMsg = '❌ Please specify a user when using the "user" filter.\nUsage: `!invites-check user @user` or `!invites-check user 123456789`';
+                if (interaction.editReply) {
+                    return await interaction.editReply({ content: errorMsg });
+                } else {
+                    return await interaction.reply({ content: errorMsg }).catch(() => 
+                        interaction.channel?.send(errorMsg)
+                    );
+                }
                 }
                 query = `
-                    SELECT 
+                    SELECT DISTINCT ON (invite_code)
                         invite_code, creator_id, creator_name, channel_id, channel_name,
-                        max_uses, temporary, expires_at, created_at, uses_count
+                        max_uses, temporary, expires_at, utc_time as actual_created_time, uses_count
                     FROM invite_log 
-                    WHERE guild_id = $1 AND creator_id = $2
-                    ORDER BY created_at DESC 
+                    WHERE guild_id = $1 AND creator_id = $2 AND invite_code != 'UNKNOWN'
+                    ORDER BY invite_code, utc_time DESC 
                     LIMIT 20
                 `;
                 params = [guildId, targetUser.id];
                 embedTitle = `👤 Invites by ${targetUser.displayName}`;
-                embedDescription = `Showing invites created by <@${targetUser.id}>`;
+                embedDescription = `Showing unique invites created by <@${targetUser.id}>`;
             } else {
                 // Invalid filter, show help
                 const helpEmbed = new EmbedBuilder()
@@ -141,7 +157,14 @@ module.exports = {
                     )
                     .setTimestamp();
                 
-                return await interaction.editReply({ embeds: [helpEmbed] });
+                // Send help embed based on interaction type
+                if (interaction.editReply) {
+                    return await interaction.editReply({ embeds: [helpEmbed] });
+                } else {
+                    return await interaction.reply({ embeds: [helpEmbed] }).catch(() => 
+                        interaction.channel?.send({ embeds: [helpEmbed] })
+                    );
+                }
             }
 
             const result = await pool.query(query, params);
@@ -154,19 +177,28 @@ module.exports = {
                     .setDescription('No invites match the specified criteria.')
                     .setTimestamp();
 
-                return await interaction.editReply({ embeds: [embed] });
+                // Send "no results" embed based on interaction type
+                if (interaction.editReply) {
+                    return await interaction.editReply({ embeds: [embed] });
+                } else {
+                    return await interaction.reply({ embeds: [embed] }).catch(() => 
+                        interaction.channel?.send({ embeds: [embed] })
+                    );
+                }
             }
 
-            // Get summary statistics
+            // Get summary statistics (using DISTINCT to count unique invites only)
             const statsQuery = `
                 SELECT 
-                    COUNT(*) as total_invites,
-                    COUNT(CASE WHEN expires_at IS NULL OR expires_at > NOW() THEN 1 END) as active_invites,
-                    SUM(uses_count) as total_uses,
+                    COUNT(DISTINCT invite_code) as total_invites,
+                    COUNT(DISTINCT CASE WHEN (expires_at IS NULL OR expires_at > NOW()) 
+                          AND (max_uses = 0 OR uses_count < max_uses) 
+                          AND invite_code != 'UNKNOWN' THEN invite_code END) as active_invites,
+                    SUM(DISTINCT uses_count) as total_uses,
                     COUNT(DISTINCT creator_id) as unique_creators,
                     AVG(uses_count) as avg_uses_per_invite
                 FROM invite_log 
-                WHERE guild_id = $1
+                WHERE guild_id = $1 AND invite_code != 'UNKNOWN'
             `;
             const statsResult = await pool.query(statsQuery, [guildId]);
             const stats = statsResult.rows[0];
@@ -176,7 +208,7 @@ module.exports = {
                 .setTitle(embedTitle)
                 .setDescription(embedDescription)
                 .setTimestamp()
-                .setFooter({ text: `Requested by ${interaction.user.displayName}` });
+                .setFooter({ text: `Requested by ${interaction.user?.displayName || interaction.member?.displayName || 'Unknown User'}` });
 
             // Add summary statistics
             embed.addFields({
@@ -199,7 +231,7 @@ module.exports = {
                 const expiry = invite.expires_at ? 
                     `<t:${Math.floor(new Date(invite.expires_at).getTime() / 1000)}:R>` : 
                     'Never';
-                const created = `<t:${Math.floor(new Date(invite.created_at).getTime() / 1000)}:R>`;
+                const created = `<t:${Math.floor(new Date(invite.actual_created_time).getTime() / 1000)}:R>`;
 
                 return [
                     `**Code:** \`${invite.invite_code}\``,
@@ -231,11 +263,18 @@ module.exports = {
             // Add helpful footer note
             if (invites.length >= 20) {
                 embed.setFooter({ 
-                    text: `${interaction.user.displayName} • Showing first 20 results. Use filters to narrow down results.` 
+                    text: `${interaction.user?.displayName || interaction.member?.displayName || 'Unknown User'} • Showing first 20 results. Use filters to narrow down results.` 
                 });
             }
 
-            await interaction.editReply({ embeds: [embed] });
+            // Send final results based on interaction type
+            if (interaction.editReply) {
+                await interaction.editReply({ embeds: [embed] });
+            } else {
+                await interaction.reply({ embeds: [embed] }).catch(() => 
+                    interaction.channel?.send({ embeds: [embed] })
+                );
+            }
 
         } catch (error) {
             console.error('Error in invites-check command:', error);
@@ -246,10 +285,13 @@ module.exports = {
                 .setDescription('An error occurred while fetching invite data from the database.')
                 .setTimestamp();
 
-            if (interaction.deferred) {
+            // Send error embed based on interaction type
+            if (interaction.editReply) {
                 await interaction.editReply({ embeds: [errorEmbed] });
             } else {
-                await interaction.reply({ embeds: [errorEmbed], ephemeral: true });
+                await interaction.reply({ embeds: [errorEmbed] }).catch(() => 
+                    interaction.channel?.send({ embeds: [errorEmbed] })
+                );
             }
         }
     },

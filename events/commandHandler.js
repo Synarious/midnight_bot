@@ -75,6 +75,15 @@ module.exports = {
           const v = options.getString();
           return v === null ? null : parseInt(v, 10);
         },
+        getBoolean: (name) => {
+          const argIndex = options._args.findIndex(arg => arg.toLowerCase() === `true` || arg.toLowerCase() === `false`);
+          if (argIndex !== -1) {
+            const val = options._args[argIndex].toLowerCase() === 'true';
+            options._args.splice(argIndex, 1);
+            return val;
+          }
+          return null;
+        },
         // Basic stubs for methods some commands may call
         getSubcommand: () => null,
         _deferred: false,
@@ -87,7 +96,7 @@ module.exports = {
       pseudo.channel = message.channel;
       pseudo.member = message.member;
       pseudo.user = message.author;
-      pseudo.commandArgs = argsArr; // Add commandArgs for traditional commands
+      pseudo.commandArgs = [...argsArr]; // Add commandArgs for traditional commands (create a copy)
 
       pseudo.reply = (content) => message.reply(content);
 
@@ -104,6 +113,8 @@ module.exports = {
           return;
         }
       };
+
+      pseudo.replied = false;
 
       pseudo.editReply = async (payload) => {
         const text = (payload && (payload.content || (typeof payload === 'string' && payload))) || (typeof payload === 'string' ? payload : null);

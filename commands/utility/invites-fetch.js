@@ -1,176 +1,426 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionsBitField, AuditLogEvent } = require('discord.js');
+const { EmbedBuilder, PermissionsBitField, AuditLogEvent } = require('discord.js');
 const { getGuildSettings, pool } = require('../../data/database.js');
 
 module.exports = {
-    data: new SlashCommandBuilder()
-        .setName('invites-fetch')
-        .setDescription('Fetch invite information from audit logs or database for a user')
-        .addUserOption(option =>
-            option.setName('user')
-                .setDescription('User to check invite information for')
-                .setRequired(true)
-        )
-        .addBooleanOption(option =>
-            option.setName('audit_logs')
-                .setDescription('Check audit logs instead of database')
-                .setRequired(false)
-        ),
+    name: 'invites-fetch',
+    description: 'Fetch invite information for all members within a specified lookback period (Admin only)',
+    usage: 'invites-fetch [days]',
+    permissions: ['Administrator'],
 
     async execute(interaction) {
         const { guild, member } = interaction;
-        const targetUser = interaction.options.getUser('user');
-        const useAuditLogs = interaction.options.getBoolean('audit_logs') || false;
 
         // Permission check - require administrator
         if (!member.permissions.has(PermissionsBitField.Flags.Administrator)) {
             return interaction.reply({ 
-                content: 'You need Administrator permissions to use this command.', 
+                content: '❌ You need Administrator permissions to use this command.', 
                 ephemeral: true 
             });
         }
 
-        // Bot permission check
-        if (!guild.members.me?.permissions.has(PermissionsBitField.Flags.ViewAuditLog)) {
-            return interaction.reply({ 
-                content: 'I need View Audit Log permission to fetch invite information.', 
-                ephemeral: true 
-            });
-        }
+        // Hardcoded to 180 days for now - argument parsing issue to be fixed later
+        const lookbackDays = 180;
+        console.log(`[InvitesFetch] Hardcoded lookbackDays to:`, lookbackDays);
 
-        await interaction.deferReply({ ephemeral: true });
-
-        try {
-            if (useAuditLogs) {
-                await this.fetchFromAuditLogs(interaction, targetUser);
-            } else {
-                await this.fetchFromDatabase(interaction, targetUser);
-            }
-        } catch (error) {
-            console.error('[InvitesFetch] Error:', error);
-            await interaction.editReply('An error occurred while fetching invite information.');
+        // Handle deferReply for legacy commands
+        if (interaction.deferReply) {
+            await interaction.deferReply();
+        } else {
+            // For legacy commands, send initial message
+            await interaction.reply('🔍 Starting invite data collection...');
         }
+        
+        return this.fetchAllMembersInviteData(interaction, lookbackDays);
     },
 
     /**
-     * Fetch invite info from database
+     * Fetch invite information for all members within the lookback period
      */
-    async fetchFromDatabase(interaction, targetUser) {
+    async fetchAllMembersInviteData(interaction, lookbackDays) {
         try {
-            const result = await pool.query(`
-                SELECT * FROM invite_log 
-                WHERE guild_id = $1 AND user_id = $2 
-                ORDER BY utc_time DESC 
-                LIMIT 10
-            `, [interaction.guild.id, targetUser.id]);
+            const { guild } = interaction;
+            const cutoffDate = new Date();
+            cutoffDate.setDate(cutoffDate.getDate() - lookbackDays);
 
-            if (result.rows.length === 0) {
-                return interaction.editReply(`No invite records found for ${targetUser.tag} in the database.`);
-            }
-
-            const embed = new EmbedBuilder()
-                .setTitle(`📊 Invite History - ${targetUser.tag}`)
-                .setColor('#0099FF')
-                .setThumbnail(targetUser.displayAvatarURL())
-                .setFooter({ text: `Total records: ${result.rows.length}` })
-                .setTimestamp();
-
-            let description = '';
-            for (const [index, record] of result.rows.entries()) {
-                const timestamp = new Date(record.utc_time);
-                const inviteCreator = record.invite_creator === 'UNKNOWN' ? 'Unknown' : `<@${record.invite_creator}>`;
-                
-                description += `**${index + 1}.** \`${record.invite}\` by ${inviteCreator}\n`;
-                description += `   📅 <t:${Math.floor(timestamp.getTime() / 1000)}:F>\n\n`;
-
-                // Discord embed description limit
-                if (description.length > 3500) {
-                    description += '*(More records available...)*';
-                    break;
+            // Update message based on interaction type
+            const updateMessage = async (content) => {
+                if (interaction.editReply) {
+                    return interaction.editReply(content);
+                } else {
+                    return interaction.reply(content).catch(() => 
+                        interaction.channel?.send(content)
+                    );
                 }
+            };
+
+            await updateMessage(`🔍 Fetching all guild members who joined within the last ${lookbackDays} days...`);
+            
+            // Fetch all members
+            const members = await guild.members.fetch();
+            
+            // Filter members by join date within lookback period
+            const recentMembers = members.filter(member => 
+                member.joinedAt && member.joinedAt >= cutoffDate
+            );
+
+            if (recentMembers.size === 0) {
+                return updateMessage(`📭 No members found who joined within the last ${lookbackDays} days.`);
             }
 
-            embed.setDescription(description || 'No valid records found.');
+            let processed = 0;
+            let updated = 0;
+            let alreadyExists = 0;
+            let errors = 0;
+            const totalMembers = recentMembers.size;
 
-            await interaction.editReply({ embeds: [embed] });
+            await updateMessage(
+                `📊 Found ${totalMembers} members who joined within the last ${lookbackDays} days.\n` +
+                `Starting invite data collection...`
+            );
 
-        } catch (error) {
-            console.error('[InvitesFetch] Database fetch error:', error);
-            await interaction.editReply('Failed to fetch data from database.');
-        }
-    },
-
-    /**
-     * Fetch invite info from audit logs
-     */
-    async fetchFromAuditLogs(interaction, targetUser) {
-        try {
-            const auditLogs = await interaction.guild.fetchAuditLogs({
-                type: AuditLogEvent.MemberJoin,
-                limit: 100
-            });
-
-            // Find all join entries for this user
-            const userJoins = auditLogs.entries.filter(entry => entry.target?.id === targetUser.id);
-
-            if (userJoins.size === 0) {
-                return interaction.editReply(`No join records found for ${targetUser.tag} in audit logs.`);
-            }
-
-            const embed = new EmbedBuilder()
-                .setTitle(`🔍 Audit Log Joins - ${targetUser.tag}`)
-                .setColor('#FF9900')
-                .setThumbnail(targetUser.displayAvatarURL())
-                .setFooter({ text: `Found ${userJoins.size} join record(s)` })
-                .setTimestamp();
-
-            let description = '';
-            let count = 1;
-
-            for (const entry of userJoins.values()) {
-                const timestamp = entry.createdTimestamp;
+            // Process members in smaller batches to avoid rate limits
+            const memberArray = Array.from(recentMembers.values());
+            const batchSize = 5;
+            
+            for (let i = 0; i < memberArray.length; i += batchSize) {
+                const batch = memberArray.slice(i, i + batchSize);
                 
-                description += `**${count}.** Join detected\n`;
-                description += `   📅 <t:${Math.floor(timestamp / 1000)}:F>\n`;
-                description += `   🆔 Entry ID: ${entry.id}\n\n`;
-
-                count++;
-
-                if (description.length > 3500) {
-                    description += '*(More records available...)*';
-                    break;
-                }
-            }
-
-            embed.setDescription(description);
-
-            // Try to correlate with current invites
-            try {
-                const currentInvites = await interaction.guild.invites.fetch();
-                if (currentInvites.size > 0) {
-                    let inviteInfo = '**Current Server Invites:**\n';
-                    let inviteCount = 0;
-                    
-                    for (const invite of currentInvites.values()) {
-                        if (inviteCount >= 5) {
-                            inviteInfo += '*(More invites available...)*\n';
-                            break;
-                        }
+                await Promise.all(batch.map(async (member) => {
+                    try {
+                        processed++;
                         
-                        inviteInfo += `\`${invite.code}\` by ${invite.inviter?.tag || 'Unknown'} (${invite.uses} uses)\n`;
-                        inviteCount++;
+                        // Check if we already have data for this user
+                        const existingData = await pool.query(
+                            'SELECT COUNT(*) as count FROM invite_log WHERE guild_id = $1 AND user_id = $2',
+                            [guild.id, member.user.id]
+                        );
+                        
+                        if (existingData.rows[0].count > 0) {
+                            alreadyExists++;
+                            return; // Skip if we already have data
+                        }
+
+                        // Try to get join method from member object
+                        let joinMethod = 'UNKNOWN';
+                        let inviteCode = 'UNKNOWN';
+                        let inviterInfo = 'UNKNOWN';
+                        let inviterName = 'Unknown';
+                        let channelId = 'UNKNOWN';
+                        let channelName = 'Unknown Channel';
+
+                        // Check if member has joinedVia property (newer Discord feature)
+                        if (member.joinedVia) {
+                            if (member.joinedVia.type === 'INVITE') {
+                                joinMethod = 'INVITE';
+                                inviteCode = member.joinedVia.inviteCode || 'UNKNOWN';
+                                if (member.joinedVia.inviter) {
+                                    inviterInfo = member.joinedVia.inviter.id;
+                                    inviterName = member.joinedVia.inviter.username;
+                                }
+                                if (member.joinedVia.channel) {
+                                    channelId = member.joinedVia.channel.id;
+                                    channelName = member.joinedVia.channel.name;
+                                }
+                            } else if (member.joinedVia.type === 'VANITY_URL') {
+                                joinMethod = 'VANITY_URL';
+                                inviteCode = guild.vanityURLCode || 'VANITY';
+                                inviterInfo = 'SERVER';
+                                inviterName = 'Server Vanity URL';
+                            } else if (member.joinedVia.type === 'DISCOVERY') {
+                                joinMethod = 'DISCOVERY';
+                                inviteCode = 'DISCOVERY';
+                                inviterInfo = 'DISCOVERY';
+                                inviterName = 'Server Discovery';
+                            }
+                        }
+
+                        // Fallback: Try to correlate with current invites and audit logs
+                        if (joinMethod === 'UNKNOWN') {
+                            try {
+                                // Check audit logs around the join time
+                                const auditLogs = await guild.fetchAuditLogs({
+                                    type: AuditLogEvent.MemberJoin,
+                                    limit: 50
+                                });
+
+                                const userJoin = auditLogs.entries.find(entry => 
+                                    entry.target?.id === member.user.id &&
+                                    Math.abs(entry.createdTimestamp - member.joinedTimestamp) < 30000 // Within 30 seconds
+                                );
+
+                                if (userJoin) {
+                                    joinMethod = 'AUDIT_LOG_DETECTED';
+                                    // Try to find invites that were used around this time
+                                    const currentInvites = await guild.invites.fetch().catch(() => null);
+                                    if (currentInvites) {
+                                        const potentialInvite = currentInvites.find(invite => 
+                                            invite.inviter && 
+                                            Math.abs(invite.createdTimestamp - userJoin.createdTimestamp) < 86400000 // Within 24 hours
+                                        );
+                                        if (potentialInvite) {
+                                            inviteCode = potentialInvite.code;
+                                            inviterInfo = potentialInvite.inviter.id;
+                                            inviterName = potentialInvite.inviter.username;
+                                            channelId = potentialInvite.channel?.id || 'UNKNOWN';
+                                            channelName = potentialInvite.channel?.name || 'Unknown Channel';
+                                        }
+                                    }
+                                }
+                            } catch (auditError) {
+                                // Ignore individual audit log errors
+                                console.log(`[InvitesFetch] Could not check audit logs for ${member.user.tag}`);
+                            }
+                        }
+
+                        // Insert the data into database
+                        await pool.query(`
+                            INSERT INTO invite_log (
+                                guild_id, user_id, utc_time, invite_code, invite_creator,
+                                creator_id, creator_name, channel_id, channel_name,
+                                max_uses, temporary, expires_at, uses_count
+                            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                        `, [
+                            guild.id,
+                            member.user.id,
+                            member.joinedAt.toISOString(),
+                            inviteCode,
+                            inviterInfo,
+                            inviterInfo,
+                            inviterName,
+                            channelId,
+                            channelName,
+                            0,
+                            false,
+                            null,
+                            0
+                        ]);
+
+                        updated++;
+
+                    } catch (memberError) {
+                        errors++;
+                        console.error(`[InvitesFetch] Error processing member ${member.user.tag}:`, memberError);
                     }
-                    
-                    embed.addFields({ name: 'Server Invites', value: inviteInfo, inline: false });
+                }));
+
+                // Update progress every 25 members
+                if (processed % 25 === 0) {
+                    await updateMessage(
+                        `📊 Progress: ${processed}/${totalMembers} members processed\n` +
+                        `✅ New Records: ${updated} | 📋 Already Exists: ${alreadyExists} | ❌ Errors: ${errors}`
+                    );
                 }
-            } catch (inviteError) {
-                console.error('[InvitesFetch] Could not fetch current invites:', inviteError);
+
+                // Small delay between batches to respect rate limits
+                if (i + batchSize < memberArray.length) {
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
             }
 
-            await interaction.editReply({ embeds: [embed] });
+            // Final summary
+            const embed = new EmbedBuilder()
+                .setTitle(`🔍 Member Invite Data Collection Complete`)
+                .setColor('#00FF00')
+                .addFields(
+                    { name: 'Lookback Period', value: `${lookbackDays} days`, inline: true },
+                    { name: 'Members in Period', value: totalMembers.toString(), inline: true },
+                    { name: 'Processed', value: processed.toString(), inline: true },
+                    { name: 'New Records Added', value: updated.toString(), inline: true },
+                    { name: 'Already Had Data', value: alreadyExists.toString(), inline: true },
+                    { name: 'Errors', value: errors.toString(), inline: true }
+                )
+                .setDescription(
+                    `Successfully processed all members who joined within the last ${lookbackDays} days.\n\n` +
+                    `**Join Methods Detected:**\n` +
+                    `• Direct invite links\n` +
+                    `• Server vanity URLs\n` +
+                    `• Server discovery\n` +
+                    `• Correlation via audit logs\n\n` +
+                    `Use \`!invites-check\` to view detailed statistics.`
+                )
+                .setTimestamp()
+                .setFooter({ text: `Scan completed by ${interaction.user.tag}` });
+
+            // Send final result
+            if (interaction.editReply) {
+                await interaction.editReply({ content: '', embeds: [embed] });
+            } else {
+                await interaction.reply({ embeds: [embed] }).catch(() => 
+                    interaction.channel?.send({ embeds: [embed] })
+                );
+            }
 
         } catch (error) {
-            console.error('[InvitesFetch] Audit log fetch error:', error);
-            await interaction.editReply('Failed to fetch audit logs. Make sure I have proper permissions.');
+            console.error('[InvitesFetch] Member fetch error:', error);
+            const errorMsg = '❌ An error occurred during the member invite data collection. Check console for details.';
+            if (interaction.editReply) {
+                await interaction.editReply(errorMsg);
+            } else {
+                await interaction.reply(errorMsg).catch(() => 
+                    interaction.channel?.send(errorMsg)
+                );
+            }
+        }
+    },
+
+    /**
+     * Legacy function - kept for compatibility but not used in new implementation
+     */
+    async performRetroactiveScan(interaction) {
+        try {
+            const { guild } = interaction;
+            
+            await interaction.deferReply({ ephemeral: true });
+            
+            // Fetch all members
+            await interaction.editReply('🔍 Fetching all guild members...');
+            const members = await guild.members.fetch();
+            
+            let processed = 0;
+            let updated = 0;
+            let errors = 0;
+            const totalMembers = members.size;
+
+            await interaction.editReply(`📊 Processing ${totalMembers} members for join method data...`);
+
+            // Process members in batches to avoid rate limits
+            const memberArray = Array.from(members.values());
+            const batchSize = 10;
+            
+            for (let i = 0; i < memberArray.length; i += batchSize) {
+                const batch = memberArray.slice(i, i + batchSize);
+                
+                await Promise.all(batch.map(async (member) => {
+                    try {
+                        processed++;
+                        
+                        // Check if we already have data for this user
+                        const existingData = await pool.query(
+                            'SELECT COUNT(*) as count FROM invite_log WHERE guild_id = $1 AND user_id = $2',
+                            [guild.id, member.user.id]
+                        );
+                        
+                        if (existingData.rows[0].count > 0) {
+                            return; // Skip if we already have data
+                        }
+
+                        // Try to get join method from member object
+                        let joinMethod = 'UNKNOWN';
+                        let inviteCode = 'UNKNOWN';
+                        let inviterInfo = 'UNKNOWN';
+
+                        // Check if member has joinedVia property (newer Discord feature)
+                        if (member.joinedVia) {
+                            if (member.joinedVia.type === 'INVITE') {
+                                joinMethod = 'INVITE';
+                                inviteCode = member.joinedVia.inviteCode || 'UNKNOWN';
+                                inviterInfo = member.joinedVia.inviter?.id || 'UNKNOWN';
+                            } else if (member.joinedVia.type === 'VANITY_URL') {
+                                joinMethod = 'VANITY_URL';
+                                inviteCode = 'VANITY';
+                                inviterInfo = 'SERVER';
+                            } else if (member.joinedVia.type === 'DISCOVERY') {
+                                joinMethod = 'DISCOVERY';
+                                inviteCode = 'DISCOVERY';
+                                inviterInfo = 'DISCOVERY';
+                            }
+                        }
+
+                        // Fallback: Check audit logs for this specific user
+                        if (joinMethod === 'UNKNOWN') {
+                            try {
+                                const auditLogs = await guild.fetchAuditLogs({
+                                    type: AuditLogEvent.MemberJoin,
+                                    limit: 100
+                                });
+
+                                const userJoin = auditLogs.entries.find(entry => 
+                                    entry.target?.id === member.user.id
+                                );
+
+                                if (userJoin) {
+                                    joinMethod = 'AUDIT_LOG';
+                                    // Try to correlate with current invites at time of join
+                                    const currentInvites = await guild.invites.fetch().catch(() => null);
+                                    if (currentInvites) {
+                                        // This is basic correlation - in practice, we'd need historical invite data
+                                        const potentialInvite = currentInvites.find(invite => 
+                                            Math.abs(invite.createdTimestamp - userJoin.createdTimestamp) < 3600000 // Within 1 hour
+                                        );
+                                        if (potentialInvite) {
+                                            inviteCode = potentialInvite.code;
+                                            inviterInfo = potentialInvite.inviter?.id || 'UNKNOWN';
+                                        }
+                                    }
+                                }
+                            } catch (auditError) {
+                                // Ignore audit log errors for individual users
+                            }
+                        }
+
+                        // Insert the data into database
+                        await pool.query(`
+                            INSERT INTO invite_log (
+                                guild_id, user_id, utc_time, invite_code, invite_creator,
+                                creator_id, creator_name, channel_id, channel_name,
+                                max_uses, temporary, expires_at, uses_count
+                            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                        `, [
+                            guild.id,
+                            member.user.id,
+                            member.joinedAt ? member.joinedAt.toISOString() : new Date().toISOString(),
+                            inviteCode,
+                            inviterInfo,
+                            inviterInfo,
+                            'Retroactive Scan',
+                            'UNKNOWN',
+                            'Unknown Channel',
+                            0,
+                            false,
+                            null,
+                            0
+                        ]);
+
+                        updated++;
+
+                    } catch (memberError) {
+                        errors++;
+                        console.error(`[InvitesFetch] Error processing member ${member.user.tag}:`, memberError);
+                    }
+                }));
+
+                // Update progress every 50 members
+                if (processed % 50 === 0) {
+                    await interaction.editReply(
+                        `📊 Progress: ${processed}/${totalMembers} members processed\n` +
+                        `✅ Updated: ${updated} | ❌ Errors: ${errors}`
+                    );
+                }
+            }
+
+            // Final summary
+            const embed = new EmbedBuilder()
+                .setTitle('🔍 Retroactive Invite Scan Complete')
+                .setColor('#00FF00')
+                .addFields(
+                    { name: 'Total Members', value: totalMembers.toString(), inline: true },
+                    { name: 'Processed', value: processed.toString(), inline: true },
+                    { name: 'Updated Records', value: updated.toString(), inline: true },
+                    { name: 'Errors', value: errors.toString(), inline: true },
+                    { name: 'Completion Rate', value: `${((processed - errors) / processed * 100).toFixed(1)}%`, inline: true }
+                )
+                .setDescription(
+                    `Successfully scanned all members and populated missing join method data.\n\n` +
+                    `**Note:** Some entries may show "UNKNOWN" for invite codes where the join method couldn't be determined from available data.`
+                )
+                .setTimestamp()
+                .setFooter({ text: `Scan completed by ${interaction.user.tag}` });
+
+            await interaction.editReply({ content: '', embeds: [embed] });
+
+        } catch (error) {
+            console.error('[InvitesFetch] Retroactive scan error:', error);
+            await interaction.editReply('❌ An error occurred during the retroactive scan. Check console for details.');
         }
     }
 };

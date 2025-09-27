@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder, PermissionsBitField } = require('discord.js');
-const { getGuildSettings, getActiveMute, deactivateMute } = require('../../data/database.js');
+const db = require('../../data/database.js');
+const { getGuildSettings, getActiveMute, deactivateMute } = db;
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -35,15 +36,10 @@ module.exports = {
 
     // Permission checks
     const hasAdminPerm = member.permissions.has(PermissionsBitField.Flags.Administrator);
-    const adminRoles = JSON.parse(settings.roles_admin || '[]');
-    const modRoles = JSON.parse(settings.roles_mod || '[]');
+    const hasPermission = hasAdminPerm || await db.hasPermissionLevel(guild.id, member.id, 'mod', member.roles.cache);
 
-    const hasRolePerm = member.roles.cache.some(role =>
-      adminRoles.includes(role.id) || modRoles.includes(role.id)
-    );
-
-    if (!hasAdminPerm && !hasRolePerm) {
-      return interaction.reply({ content: 'You do not have permission to unmute users.', ephemeral: true });
+    if (!hasPermission) {
+      return interaction.reply({ content: 'You do not have permission to unmute users. Requires mod level or higher.', ephemeral: true });
     }
 
     // Get active mute from database
@@ -95,7 +91,7 @@ module.exports = {
       }
 
       // Log action in the action log channel
-      const logChannelId = settings.ch_actionLog;
+  const logChannelId = settings.ch_actionlog ?? settings.ch_actionLog;
       if (!logChannelId) {
         console.error(`[ERROR] No action log configured for guild ${guild.id}. Cannot log unmute for ${userToUnmute.id}`);
       } else {

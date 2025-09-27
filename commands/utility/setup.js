@@ -13,10 +13,13 @@ const settingsGroups = {
         }
     },
     roles: {
-        description: 'Configure role-based permissions and settings.',
+        description: 'Configure the 5-tier permission system and other roles.',
         settings: {
+            roles_super_admin: { type: 'role_array', description: 'Super Admin roles (highest level)' },
             roles_admin: { type: 'role_array', description: 'Admin roles' },
             roles_mod: { type: 'role_array', description: 'Moderator roles' },
+            roles_jr_mod: { type: 'role_array', description: 'Junior Moderator roles' },
+            roles_helper: { type: 'role_array', description: 'Helper roles' },
             roles_trust: { type: 'role_array', description: 'Trusted roles' },
             roles_untrusted: { type: 'role_array', description: 'Untrusted roles' },
         }
@@ -60,8 +63,16 @@ const settingsGroups = {
 };
 
 // A simple regex to validate that the input contains only characters expected in mentions, IDs, and delimiters.
-const safeInputRegex = /^[\d\s,<@&#>!]+$/;
+// Allow alphanumeric words as well as mentions/IDs while still restricting dangerous characters
+const safeInputRegex = /^[\w\s,<@&#>!]+$/;
 
+const permissionLevelColumns = {
+    super_admin: 'roles_super_admin',
+    admin: 'roles_admin',
+    mod: 'roles_mod',
+    jr_mod: 'roles_jr_mod',
+    helper: 'roles_helper'
+};
 // --- Command Builder ---
 const builder = new SlashCommandBuilder()
     .setName('setup')
@@ -93,11 +104,85 @@ for (const groupName in settingsGroups) {
     });
 }
 
+builder.addSubcommand(subcommand =>
+    subcommand
+        .setName('permissions')
+        .setDescription('Configure role bindings for a permission level.')
+        .addStringOption(option =>
+            option
+                .setName('level')
+                .setDescription('Permission level to configure')
+                .setRequired(true)
+                .addChoices(
+                    { name: 'super_admin', value: 'super_admin' },
+                    { name: 'admin', value: 'admin' },
+                    { name: 'mod', value: 'mod' },
+                    { name: 'jr_mod', value: 'jr_mod' },
+                    { name: 'helper', value: 'helper' }
+                ))
+        .addStringOption(option =>
+            option
+                .setName('roles')
+                .setDescription('Role mentions or IDs (use "clear" to remove all).')
+                .setRequired(true))
+);
+
 
 module.exports = {
     data: builder,
     async execute(interaction) {
         const groupName = interaction.options.getSubcommand();
+
+        if (groupName === 'permissions') {
+            const level = interaction.options.getString('level');
+            const rawRoles = interaction.options.getString('roles');
+
+            const column = permissionLevelColumns[level];
+            if (!column) {
+                return interaction.reply({ content: 'Unknown permission level selected.', ephemeral: true });
+            }
+
+            if (rawRoles.toLowerCase() !== 'clear' && !safeInputRegex.test(rawRoles)) {
+                return interaction.reply({
+                    content: 'Error: The value contains invalid characters. Please only use role mentions or IDs, or "clear".',
+                    ephemeral: true
+                });
+            }
+
+            let roleIds = [];
+            if (rawRoles.toLowerCase() !== 'clear') {
+                roleIds = rawRoles.match(/\d{17,20}/g) || [];
+                if (roleIds.length === 0) {
+                    return interaction.reply({ content: 'Please provide at least one valid role mention or ID, or use "clear".', ephemeral: true });
+                }
+            }
+
+            const dbValue = JSON.stringify(roleIds);
+            const displayValue = roleIds.length > 0
+                ? roleIds.map(id => `<@&${id}>`).join(', ')
+                : '_(Empty)_';
+
+            try {
+                await updateGuildSetting(interaction.guild.id, column, dbValue);
+
+                const embed = new EmbedBuilder()
+                    .setColor(0x00FF00)
+                    .setTitle('✅ Permission Roles Updated')
+                    .setDescription('The role bindings for the selected permission level were updated successfully.')
+                    .addFields(
+                        { name: 'Permission Level', value: `\`${level}\``, inline: true },
+                        { name: 'Roles', value: displayValue, inline: false }
+                    )
+                    .setTimestamp()
+                    .setFooter({ text: `Updated by ${interaction.user.tag}` });
+
+                return interaction.reply({ embeds: [embed] });
+            } catch (error) {
+                console.error('[SETUP COMMAND] Error updating permission roles:', error);
+                return interaction.reply({ content: 'An error occurred while updating permission roles in the database.', ephemeral: true });
+            }
+        }
+
         const settingKey = interaction.options.getString('setting');
         const rawValue = interaction.options.getString('value');
 
@@ -107,7 +192,7 @@ module.exports = {
         // --- Input Validation ---
         if (!safeInputRegex.test(rawValue)) {
             return interaction.reply({
-                content: 'Error: The value contains invalid characters. Please only use mentions, IDs, spaces, and commas.',
+                content: 'Error: The value contains invalid characters. Please use mentions, IDs, spaces, commas, or simple words (e.g. "true", "clear").',
                 ephemeral: true
             });
         }

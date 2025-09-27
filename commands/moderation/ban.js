@@ -34,15 +34,10 @@ module.exports = {
     }
 
     const hasAdminPerm = member.permissions.has(PermissionsBitField.Flags.Administrator);
-    const adminRoles = JSON.parse(settings.roles_admin || '[]');
-    const modRoles = JSON.parse(settings.roles_mod || '[]');
+    const hasPermission = hasAdminPerm || await db.hasPermissionLevel(guild.id, member.id, 'helper', member.roles.cache);
 
-    const hasRolePerm = member.roles.cache.some(role =>
-      adminRoles.includes(role.id) || modRoles.includes(role.id)
-    );
-
-    if (!hasAdminPerm && !hasRolePerm) {
-      return interaction.reply({ content: 'You do not have permission to ban users.', ephemeral: true });
+    if (!hasPermission) {
+      return interaction.reply({ content: 'You do not have permission to ban users. Requires helper level or higher.', ephemeral: true });
     }
 
     // --- Execution ---
@@ -74,7 +69,7 @@ module.exports = {
 
       // --- Logging ---
       // Use guild-specific action log from DB only (do not fallback to env)
-      const logChannelId = settings.ch_actionLog;
+  const logChannelId = settings.ch_actionlog ?? settings.ch_actionLog;
       if (!logChannelId) {
         console.error(`[ERROR] No action log configured for guild ${guild.id}. Cannot log ban for ${userToBan.id}`);
       } else {

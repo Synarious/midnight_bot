@@ -1,6 +1,6 @@
 const { SlashCommandBuilder } = require('@discordjs/builders');
-const { EmbedBuilder } = require('discord.js');
-const { pool } = require('../../data/database.js');
+const { EmbedBuilder, PermissionsBitField } = require('discord.js');
+const db = require('../../data/database.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -22,29 +22,22 @@ module.exports = {
         const userToBan = interaction.options.getUser('user');
         const reason = interaction.options.getString('reason') || 'No reason provided';
 
-        const result = await pool.query('SELECT roles_admin, roles_mod, ch_actionLog FROM guild_settings WHERE guild_id = $1', [guild.id]);
-        if (!result.rows[0]) {
+        const settings = await db.getGuildSettings(guild.id);
+        if (!settings) {
             return interaction.reply({ content: 'Guild settings not found in the database.', ephemeral: true });
         }
 
-    const settings = result.rows[0];
-    const roles_admin = Array.isArray(settings.roles_admin) ? settings.roles_admin : 
-              (settings.roles_admin ? JSON.parse(settings.roles_admin) : []);
-    const roles_mod = Array.isArray(settings.roles_mod) ? settings.roles_mod :
-             (settings.roles_mod ? JSON.parse(settings.roles_mod) : []);
-    // Use DB-configured action log only
-    const ch_actionLog = settings.ch_actionLog;
+        const ch_actionLog = settings.ch_actionlog ?? settings.ch_actionLog;
 
-        const hasPermission = member.roles.cache.some(role =>
-            roles_admin.includes(role.id) || roles_mod.includes(role.id)
-        ) || member.permissions.has('ADMINISTRATOR');
+        const hasAdminPerm = member.permissions.has(PermissionsBitField.Flags.Administrator);
+        const hasPermission = hasAdminPerm || await db.hasPermissionLevel(guild.id, member.id, 'jr_mod', member.roles.cache);
         if (!hasPermission) {
-            return interaction.reply({ content: 'You do not have permission to ban users.', ephemeral: true });
+            return interaction.reply({ content: 'You do not have permission to ban users. Requires jr. mod level or higher.', ephemeral: true });
         }
 
         // Bot permission check
         const botMember = guild.members.me;
-        if (!botMember?.permissions.has('BanMembers')) {
+        if (!botMember?.permissions.has(PermissionsBitField.Flags.BanMembers)) {
             return interaction.reply({ content: 'I do not have permission to ban members.', ephemeral: true });
         }
 
