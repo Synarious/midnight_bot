@@ -7,6 +7,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    volumes:
+      # Mount backup directory to host machine
+      - ./data/backup:/usr/src/app/data/backup
     environment:
       # These lines map the variables from your .env file to the container.
       - DISCORD_TOKEN=${TOKEN}

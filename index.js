@@ -13,9 +13,9 @@ console.log('[BOOT] Starting bot...');
 const impersonationCheck = require('./modules/impersonationCheck.js');
 const muteHandler = require('./modules/muteHandler.js');
 const inviteTracker = require('./modules/inviteTracker.js');
+const dbBackup = require('./modules/dbBackup.js');
 const token = process.env.DISCORD_TOKEN;
 const database = require('./data/database.js');
-const dbMaintenance = require('./data/dbMaintenance.js');
 const commandHandler = require('./events/commandHandler.js');
 
 
@@ -92,7 +92,7 @@ console.log('[MODULES] Registering custom module event listeners...');
 
 client.on('guildCreate', database.onGuildCreate);
 
-client.once(Events.ClientReady, c => {
+client.once(Events.ClientReady, async c => {
     console.log(`[READY] Client is ready! Logged in as ${c.user.tag}`);
     console.log('[READY] Performing post-login initializations...');
 
@@ -113,6 +113,12 @@ client.once(Events.ClientReady, c => {
         console.log('  └─ [Module] Initialized: Invite Tracker');
     } catch (e) {
         console.error('  └─ [ERROR] Failed to initialize Invite Tracker:', e);
+    }
+    try {
+        await dbBackup.initialize(c);
+        console.log('  └─ [Module] Initialized: Database Backup Scheduler');
+    } catch (e) {
+        console.error('  └─ [ERROR] Failed to initialize Database Backup Scheduler:', e);
     }
 });
 
@@ -149,16 +155,12 @@ client.on('messageCreate', (message) => {
 
 console.log('[MODULES] Finished registering custom modules.');
 
-// --- Client Login with DB Maintenance ---
+// --- Client Login ---
 (async () => {
     try {
-        console.log('[DBM] Running database schema check...');
-        await dbMaintenance.runDBMaintenance();
-        console.log('[DBM] Database schema check completed.');
-
-        console.log('[DBM] Logging into Discord...');
+        console.log('[LOGIN] Logging into Discord...');
         await client.login(token);
-        console.log('[DBM] Login successful.');
+        console.log('[LOGIN] Login successful.');
     } catch (err) {
         console.error('[FATAL] Bot startup failed:', err);
         process.exit(1);
