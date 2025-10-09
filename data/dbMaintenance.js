@@ -58,7 +58,8 @@ CREATE TABLE IF NOT EXISTS filtered_messages (
   self_harm INTEGER,
   sexual INTEGER,
   violence INTEGER,
-  content TEXT
+  content TEXT,
+  recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS muted_users (
@@ -71,7 +72,27 @@ CREATE TABLE IF NOT EXISTS muted_users (
   actioned_by TEXT,
   length TEXT,
   expires TEXT,
-  timestamp TEXT
+  timestamp TEXT,
+  recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS invite_log (
+  log_id SERIAL PRIMARY KEY,
+  guild_id TEXT NOT NULL,
+  user_id TEXT,
+  utc_time TIMESTAMP NOT NULL,
+  invite_code TEXT NOT NULL,
+  invite_creator TEXT NOT NULL,
+  creator_id TEXT NOT NULL,
+  creator_name TEXT NOT NULL,
+  channel_id TEXT NOT NULL,
+  channel_name TEXT NOT NULL,
+  max_uses INTEGER DEFAULT 0,
+  temporary BOOLEAN DEFAULT FALSE,
+  expires_at TIMESTAMP,
+  uses_count INTEGER DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS user_info (
@@ -96,6 +117,11 @@ CREATE TABLE IF NOT EXISTS user_info (
   ignore BOOLEAN DEFAULT FALSE,
   timestamp TEXT
 );
+
+CREATE INDEX IF NOT EXISTS idx_filtered_messages_guild_recorded_at ON filtered_messages (guild_id, recorded_at);
+CREATE INDEX IF NOT EXISTS idx_muted_users_guild_active ON muted_users (guild_id, active);
+CREATE INDEX IF NOT EXISTS idx_muted_users_active_expires_at ON muted_users (active, expires_at);
+CREATE INDEX IF NOT EXISTS idx_invite_log_guild_created_at ON invite_log (guild_id, created_at);
 `;
 
 // Function to check for a column and add it if it doesn't exist
@@ -132,29 +158,6 @@ async function runDBMaintenance() {
     // The check in initSQL has been updated to include it, but this is good practice.
     await checkAndAddColumn(client, 'muted_users', 'active', 'BOOLEAN');
 
-    // Add invite tracking table with comprehensive schema
-    const inviteLogTableQuery = `
-      CREATE TABLE IF NOT EXISTS invite_log (
-        log_id SERIAL PRIMARY KEY,
-        guild_id TEXT NOT NULL,
-        user_id TEXT,
-        utc_time TIMESTAMP NOT NULL,
-        invite_code TEXT NOT NULL,
-        invite_creator TEXT NOT NULL,
-        creator_id TEXT NOT NULL,
-        creator_name TEXT NOT NULL,
-        channel_id TEXT NOT NULL,
-        channel_name TEXT NOT NULL,
-        max_uses INTEGER DEFAULT 0,
-        temporary BOOLEAN DEFAULT FALSE,
-        expires_at TIMESTAMP,
-        uses_count INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `;
-    await client.query(inviteLogTableQuery);
-    console.log('[DB] [MIGRATION] invite_log table ensured.');
-
     // Add columns to existing invite_log table if they don't exist
     await checkAndAddColumn(client, 'invite_log', 'invite_code', 'TEXT');
     await checkAndAddColumn(client, 'invite_log', 'creator_id', 'TEXT NOT NULL DEFAULT \'\'');
@@ -175,6 +178,19 @@ async function runDBMaintenance() {
     await checkAndAddColumn(client, 'guild_settings', 'roles_super_admin', 'TEXT DEFAULT \'[]\'');
     await checkAndAddColumn(client, 'guild_settings', 'roles_jr_mod', 'TEXT DEFAULT \'[]\'');
     await checkAndAddColumn(client, 'guild_settings', 'roles_helper', 'TEXT DEFAULT \'[]\'');
+
+  await checkAndAddColumn(client, 'filtered_messages', 'recorded_at', 'TIMESTAMPTZ DEFAULT NOW()');
+  await checkAndAddColumn(client, 'muted_users', 'recorded_at', 'TIMESTAMPTZ DEFAULT NOW()');
+  await checkAndAddColumn(client, 'muted_users', 'expires_at', 'TIMESTAMPTZ');
+
+  await client.query('UPDATE filtered_messages SET recorded_at = NOW() WHERE recorded_at IS NULL;');
+  await client.query('UPDATE muted_users SET recorded_at = NOW() WHERE recorded_at IS NULL;');
+  await client.query("UPDATE muted_users SET expires_at = COALESCE(expires_at, to_timestamp(expires::double precision / 1000)) WHERE expires_at IS NULL AND expires IS NOT NULL AND expires <> '' AND expires ~ '^\\d+$';");
+
+  await client.query('CREATE INDEX IF NOT EXISTS idx_filtered_messages_guild_recorded_at ON filtered_messages (guild_id, recorded_at);');
+  await client.query('CREATE INDEX IF NOT EXISTS idx_muted_users_guild_active ON muted_users (guild_id, active);');
+  await client.query('CREATE INDEX IF NOT EXISTS idx_muted_users_active_expires_at ON muted_users (active, expires_at);');
+  await client.query('CREATE INDEX IF NOT EXISTS idx_invite_log_guild_created_at ON invite_log (guild_id, created_at);');
 
 
     // --- End of schema changes ---

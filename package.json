@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "deploy": "node deploy-commands.js",
-    "start": "node index.js"
+    "start": "node index.js",
+    "migrate": "node migrate.js"
   },
   "repository": {
     "type": "git",
@@ -23,6 +24,7 @@
   },
   "homepage": "https://github.com/Synarious/midnight_bot#readme",
   "dependencies": {
+    "@bitwarden/sdk-napi": "^1.0.0",
     "@supabase/supabase-js": "^2.52.1",
     "alexflipnote.js": "^3.1.2",
     "axios": "^1.12.0",

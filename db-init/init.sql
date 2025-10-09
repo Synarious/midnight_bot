@@ -46,7 +46,8 @@ CREATE TABLE IF NOT EXISTS filtered_messages (
     self_harm INTEGER,
     sexual INTEGER,
     violence INTEGER,
-    content TEXT
+    content TEXT,
+    recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS muted_users (
@@ -59,7 +60,27 @@ CREATE TABLE IF NOT EXISTS muted_users (
     actioned_by TEXT,
     length TEXT,
     expires TEXT,
-    timestamp TEXT
+    timestamp TEXT,
+    recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS invite_log (
+    log_id SERIAL PRIMARY KEY,
+    guild_id TEXT NOT NULL,
+    user_id TEXT,
+    utc_time TIMESTAMP NOT NULL,
+    invite_code TEXT NOT NULL,
+    invite_creator TEXT NOT NULL,
+    creator_id TEXT NOT NULL,
+    creator_name TEXT NOT NULL,
+    channel_id TEXT NOT NULL,
+    channel_name TEXT NOT NULL,
+    max_uses INTEGER DEFAULT 0,
+    temporary BOOLEAN DEFAULT FALSE,
+    expires_at TIMESTAMP,
+    uses_count INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS user_info (
@@ -84,3 +105,15 @@ CREATE TABLE IF NOT EXISTS user_info (
     ignore BOOLEAN DEFAULT FALSE,
     timestamp TEXT
 );
+
+CREATE INDEX IF NOT EXISTS idx_filtered_messages_guild_recorded_at
+    ON filtered_messages (guild_id, recorded_at);
+
+CREATE INDEX IF NOT EXISTS idx_muted_users_guild_active
+    ON muted_users (guild_id, active);
+
+CREATE INDEX IF NOT EXISTS idx_muted_users_active_expires_at
+    ON muted_users (active, expires_at);
+
+CREATE INDEX IF NOT EXISTS idx_invite_log_guild_created_at
+    ON invite_log (guild_id, created_at);

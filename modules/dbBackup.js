@@ -89,48 +89,59 @@ async function generateSQLDump() {
       
       const columnDefs = columnsResult.rows.map(col => {
         let def = `  "${col.column_name}" `;
-        
-        // Map data types
-        switch (col.data_type.toLowerCase()) {
-          case 'character varying':
-            def += col.character_maximum_length ? `VARCHAR(${col.character_maximum_length})` : 'TEXT';
-            break;
-          case 'text':
-            def += 'TEXT';
-            break;
-          case 'integer':
-            def += 'INTEGER';
-            break;
-          case 'bigint':
-            def += 'BIGINT';
-            break;
-          case 'boolean':
-            def += 'BOOLEAN';
-            break;
-          case 'timestamp without time zone':
-            def += 'TIMESTAMP';
-            break;
-          case 'timestamp with time zone':
-            def += 'TIMESTAMPTZ';
-            break;
-          default:
-            def += col.data_type.toUpperCase();
-        }
-        
-        if (col.column_default && col.column_default.includes('nextval')) {
-          if (col.column_default.includes('IDENTITY')) {
-            def += ' GENERATED ALWAYS AS IDENTITY';
+
+        const dataType = col.data_type.toLowerCase();
+        const hasNextval = col.column_default && col.column_default.toLowerCase().includes('nextval');
+        const isIdentity = col.column_default && /identity/i.test(col.column_default);
+
+        // If column is a sequence-backed column (nextval), emit the appropriate SERIAL/BIGSERIAL
+        if (hasNextval && !isIdentity) {
+          if (dataType === 'bigint') {
+            def += 'BIGSERIAL';
           } else {
-            def += ' SERIAL';
+            // default to SERIAL for integer-like types
+            def += 'SERIAL';
           }
-        } else if (col.column_default) {
-          def += ` DEFAULT ${col.column_default}`;
+        } else {
+          // Map data types
+          switch (dataType) {
+            case 'character varying':
+              def += col.character_maximum_length ? `VARCHAR(${col.character_maximum_length})` : 'TEXT';
+              break;
+            case 'text':
+              def += 'TEXT';
+              break;
+            case 'integer':
+              def += 'INTEGER';
+              break;
+            case 'bigint':
+              def += 'BIGINT';
+              break;
+            case 'boolean':
+              def += 'BOOLEAN';
+              break;
+            case 'timestamp without time zone':
+              def += 'TIMESTAMP';
+              break;
+            case 'timestamp with time zone':
+              def += 'TIMESTAMPTZ';
+              break;
+            default:
+              def += col.data_type.toUpperCase();
+          }
+
+          // If the column uses GENERATED ... AS IDENTITY in its default, preserve that
+          if (isIdentity) {
+            def += ' GENERATED ALWAYS AS IDENTITY';
+          } else if (col.column_default) {
+            def += ` DEFAULT ${col.column_default}`;
+          }
         }
-        
+
         if (col.is_nullable === 'NO') {
           def += ' NOT NULL';
         }
-        
+
         return def;
       });
       

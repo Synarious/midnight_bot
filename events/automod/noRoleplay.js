@@ -37,14 +37,20 @@ async function warnAndDelete(message, matchedPhrase) {
     try {
         await message.delete();
 
-        const warning = await message.channel.send({
-            content: `⚠️ <@${message.author.id}> Keep roleplay to your DMs, follow server roles & help us keep the chat clean!`,
-            allowedMentions: { users: [message.author.id] },
+        // Send private warning via DM instead of public channel message
+        await message.author.send({
+            content: `⚠️ Your message in **${message.guild.name}** (#${message.channel.name}) was removed for roleplay content.\n\nKeep roleplay to your DMs, follow server rules and help keep topics inclusive for everyone!\n\n*Matched phrase: ${matchedPhrase}*`
+        }).catch(() => {
+            // If DM fails, send a brief ephemeral-style message that auto-deletes quickly
+            message.channel.send({
+                content: `⚠️ <@${message.author.id}> Check your DMs for automod moderation details.`,
+                allowedMentions: { users: [message.author.id] }
+            }).then(warning => {
+                setTimeout(() => {
+                    warning.delete().catch(() => {});
+                }, 3000);
+            }).catch(() => {});
         });
-
-        setTimeout(() => {
-            warning.delete().catch(() => {});
-        }, 5000);
 
     } catch (err) {
         console.error('Failed to delete or warn:', err);

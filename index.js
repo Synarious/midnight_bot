@@ -1,4 +1,26 @@
 require('dotenv').config();
+
+function mask(v) {
+    if (!v) return '<missing>';
+    const s = String(v);
+    if (s.length <= 8) return '******';
+    return `${s.slice(0,4)}…${s.slice(-4)} (len=${s.length})`;
+}
+
+async function startupDebug() {
+    try {
+        console.log('[DEBUG] Startup secret diagnostics:');
+        console.log('  - env.DISCORD_TOKEN present:', Boolean(process.env.DISCORD_TOKEN));
+        console.log('  - env.TOKEN present:', Boolean(process.env.TOKEN));
+        console.log('  - process.env.DISCORD_TOKEN ->', mask(process.env.DISCORD_TOKEN));
+        console.log('  - process.env.TOKEN ->', mask(process.env.TOKEN));
+    } catch (err) {
+        console.warn('[DEBUG] startupDebug failed:', err && err.message ? err.message : err);
+    }
+}
+
+// Fire-and-forget startup debug; useful if login fails below
+startupDebug().catch(() => {});
 const fs = require('fs');
 const path = require('path');
 const { Client, Collection, GatewayIntentBits, Partials, Events } = require('discord.js');
@@ -10,10 +32,10 @@ const { Client, Collection, GatewayIntentBits, Partials, Events } = require('dis
 console.log('[BOOT] Starting bot...');
 
 // --- Module Imports ---
-const impersonationCheck = require('./modules/impersonationCheck.js');
 const muteHandler = require('./modules/muteHandler.js');
 const inviteTracker = require('./modules/inviteTracker.js');
 const dbBackup = require('./modules/dbBackup.js');
+const HealthCheck = require('./modules/healthcheck.js');
 const token = process.env.DISCORD_TOKEN;
 const database = require('./data/database.js');
 const commandHandler = require('./events/commandHandler.js');
@@ -96,12 +118,14 @@ client.once(Events.ClientReady, async c => {
     console.log(`[READY] Client is ready! Logged in as ${c.user.tag}`);
     console.log('[READY] Performing post-login initializations...');
 
+    // Sync guild settings first
     try {
-        impersonationCheck.initialize(c);
-        console.log('  └─ [Module] Initialized: Impersonation Checker');
+        await database.syncGuildSettings(c);
+        console.log('  └─ [Database] Guild settings synchronized');
     } catch (e) {
-        console.error('  └─ [ERROR] Failed to initialize Impersonation Checker:', e);
+        console.error('  └─ [ERROR] Failed to sync guild settings:', e);
     }
+
     try {
         muteHandler.initialize(c);
         console.log('  └─ [Module] Initialized: Mute Handler');
@@ -120,24 +144,38 @@ client.once(Events.ClientReady, async c => {
     } catch (e) {
         console.error('  └─ [ERROR] Failed to initialize Database Backup Scheduler:', e);
     }
-});
-
-client.on(Events.UserUpdate, (oldUser, newUser) => {
-    impersonationCheck[Events.UserUpdate].execute(oldUser, newUser, client);
-});
-
-client.on(Events.GuildMemberUpdate, (oldMember, newMember) => {
-    impersonationCheck[Events.GuildMemberUpdate].execute(oldMember, newMember);
+    
+    // Start healthcheck monitoring
+    try {
+        const healthcheck = new HealthCheck(process.env.HEALTHCHECK_URL, 3);
+        healthcheck.start();
+        console.log('  └─ [Module] Initialized: Healthcheck Monitor');
+        
+        // Graceful shutdown handler
+        process.on('SIGTERM', () => {
+            console.log('[SHUTDOWN] SIGTERM received, shutting down gracefully...');
+            healthcheck.stop();
+            c.destroy();
+            process.exit(0);
+        });
+        
+        process.on('SIGINT', () => {
+            console.log('[SHUTDOWN] SIGINT received, shutting down gracefully...');
+            healthcheck.stop();
+            c.destroy();
+            process.exit(0);
+        });
+    } catch (e) {
+        console.error('  └─ [ERROR] Failed to initialize Healthcheck Monitor:', e);
+    }
 });
 
 client.on(Events.GuildMemberAdd, member => {
-    impersonationCheck[Events.GuildMemberAdd].execute(member);
     muteHandler.handleMemberJoin(member);
     inviteTracker.handleMemberJoin(member);
 });
 
 client.on(Events.GuildMemberRemove, member => {
-    impersonationCheck[Events.GuildMemberRemove].execute(member);
     inviteTracker.handleMemberLeave(member);
 });
 
@@ -156,13 +194,25 @@ client.on('messageCreate', (message) => {
 console.log('[MODULES] Finished registering custom modules.');
 
 // --- Client Login ---
-(async () => {
-    try {
-        console.log('[LOGIN] Logging into Discord...');
-        await client.login(token);
-        console.log('[LOGIN] Login successful.');
-    } catch (err) {
-        console.error('[FATAL] Bot startup failed:', err);
-        process.exit(1);
+let startupFailures = 0;
+
+async function safeLogin(client, token) {
+  try {
+    console.log('[LOGIN] Logging into Discord...');
+    await client.login(token);
+    console.log('[LOGIN] Login successful.');
+    startupFailures = 0; // Reset failures on success
+  } catch (err) {
+    startupFailures++;
+    console.error(`[FATAL] Bot startup failed (attempt ${startupFailures}):`, err);
+
+    if (startupFailures >= 3) {
+      console.error('[FATAL] Maximum startup attempts reached. Shutting down.');
+      process.exit(1);
     }
+  }
+}
+
+(async () => {
+  await safeLogin(client, token);
 })();
