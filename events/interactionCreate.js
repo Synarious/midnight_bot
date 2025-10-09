@@ -315,7 +315,36 @@ module.exports = {
                     }
 
                     const meta = validation.meta || {};
-                    captchaManager.clearSelections(interaction.user.id);
+                                        captchaManager.clearSelections(interaction.user.id);
+                                        // Cancel any scheduled onboarding kick for this user
+                                        try {
+                                            const onboardingScheduler = require('../modules/onboardingScheduler.js');
+                                            const cancelled = onboardingScheduler.cancel(interaction.user.id);
+                                            console.debug('[onboarding] scheduled kick cancel result for', interaction.user.id, cancelled);
+
+                                            // Send a cancellation log to the moderation/log channel so we can trace it
+                                            try {
+                                                const LOG_CHANNEL_ID = '1425705491274928138';
+                                                const logChannel = interaction.guild.channels.cache.get(LOG_CHANNEL_ID) || await interaction.guild.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
+                                                if (logChannel && logChannel.send) {
+                                                    const cancelEmbed = new EmbedBuilder()
+                                                        .setTitle('Onboarding Kick Cancelled')
+                                                        .setColor(0x2ECC71)
+                                                        .setDescription(`${interaction.user.tag} (${interaction.user.id}) completed onboarding — scheduled kick ${cancelled ? 'was cancelled' : 'had no scheduled entry (already cleared)'}.`)
+                                                        .addFields(
+                                                            { name: 'Cancelled', value: String(cancelled), inline: true },
+                                                            { name: 'Time', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true }
+                                                        )
+                                                        .setTimestamp();
+
+                                                    await logChannel.send({ embeds: [cancelEmbed] }).catch(() => null);
+                                                }
+                                            } catch (logErr) {
+                                                console.error('[onboarding] Failed to send scheduled-cancel log:', logErr);
+                                            }
+                                        } catch (schErr) {
+                                            console.warn('[onboarding] Could not cancel scheduled kick (scheduler missing?):', schErr);
+                                        }
 
                     // Remove gate role if present
                     const GATE_ROLE_ID = onboardingConfig.GATE_ROLE_ID || '1425702277410455654';
@@ -411,6 +440,33 @@ module.exports = {
                             console.error('[onboarding] Failed to send welcome messages:', sendError);
                         }
                     })();
+
+                    // Log successful onboarding to moderation/log channel
+                    try {
+                        const LOG_CHANNEL_ID = '1425705491274928138';
+                        const logChannel = interaction.guild.channels.cache.get(LOG_CHANNEL_ID) || await interaction.guild.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
+                        if (logChannel && logChannel.send) {
+                            const state = meta || {};
+                            const getLabel = (v) => (v && (v.label || v.name || v.key)) || '—';
+
+                            const successEmbed = new EmbedBuilder()
+                                .setTitle('Onboarding Completed')
+                                .setColor(0x57F287)
+                                .setDescription(`${member ? `<@${interaction.user.id}>` : interaction.user.tag} (${interaction.user.id}) completed onboarding and passed captcha.`)
+                                .addFields(
+                                    { name: 'Pronoun', value: getLabel(state.pronoun), inline: true },
+                                    { name: 'Region', value: getLabel(state.continent), inline: true },
+                                    { name: 'Age', value: getLabel(state.age), inline: true },
+                                    { name: 'Gaming', value: getLabel(state.gaming), inline: true },
+                                    { name: 'Gate Role Removed', value: member ? (member.roles.cache.has(onboardingConfig.GATE_ROLE_ID) ? 'No' : 'Yes') : 'Unknown', inline: true },
+                                )
+                                .setTimestamp();
+
+                            await logChannel.send({ embeds: [successEmbed] }).catch(() => null);
+                        }
+                    } catch (logErr) {
+                        console.error('[onboarding] Failed to send onboarding success log:', logErr);
+                    }
 
                     await interaction.reply({
                         content: `✅ Captcha complete! Welcome aboard!\n${summary}`,

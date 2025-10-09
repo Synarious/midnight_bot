@@ -128,8 +128,6 @@ module.exports = {
         'Select your roles from the menus below to help us get to know you better. Addtional roles can be selected later in #role-assign.',
         'When you\'re ready, hit **Finish & Join** to receive a one-time verification code (visible only to you).',
         '',
-        '✅ **To verify your "human" identity, you will complete captcha when clicking "finish"**',
-        '',
         'If something goes wrong or the captcha expires, you can click **Finish** again to get a fresh code.',
       ].join('\n'))
       .setColor(0x5865F2)
