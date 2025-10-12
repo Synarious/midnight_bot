@@ -1,13 +1,12 @@
 const {
     Events,
     MessageFlags,
-    EmbedBuilder,
     ModalBuilder,
     TextInputBuilder,
     TextInputStyle,
     ActionRowBuilder,
 } = require('discord.js');
-const captchaManager = require('../modules/captchaManager.js');
+const captchaManager = require('../modules/onboarding.js');
 const onboardingConfig = require('../data/onboardingConfig.js');
 const db = require('../data/database.js');
 
@@ -318,7 +317,7 @@ module.exports = {
                                         captchaManager.clearSelections(interaction.user.id);
                                         // Cancel any scheduled onboarding kick for this user
                                         try {
-                                            const onboardingScheduler = require('../modules/onboardingScheduler.js');
+                                            const onboardingScheduler = require('../modules/onboarding.js');
                                             const cancelled = onboardingScheduler.cancel(interaction.user.id);
                                             console.debug('[onboarding] scheduled kick cancel result for', interaction.user.id, cancelled);
 
@@ -327,18 +326,14 @@ module.exports = {
                                                 const LOG_CHANNEL_ID = '1425705491274928138';
                                                 const logChannel = interaction.guild.channels.cache.get(LOG_CHANNEL_ID) || await interaction.guild.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
                                                 if (logChannel && logChannel.send) {
-                                                    const cancelEmbed = new EmbedBuilder()
-                                                        .setTitle('Onboarding Kick Cancelled')
-                                                        .setColor(0x2ECC71)
-                                                        .setDescription(`${interaction.user.tag} (${interaction.user.id}) completed onboarding — scheduled kick ${cancelled ? 'was cancelled' : 'had no scheduled entry (already cleared)'}.`)
-                                                        .addFields(
-                                                            { name: 'Cancelled', value: String(cancelled), inline: true },
-                                                            { name: 'Time', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true }
-                                                        )
-                                                        .setTimestamp();
-
-                                                    await logChannel.send({ embeds: [cancelEmbed] }).catch(() => null);
-                                                }
+                                                        // send a concise single-line onboarding-completed message
+                                                        const memberForLog = interaction.member ?? await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+                                                        const accountCreatedTs = memberForLog ? memberForLog.user.createdTimestamp : (interaction.user?.createdTimestamp || Date.now());
+                                                        const roleNames = memberForLog ? memberForLog.roles.cache.filter(r => r.id !== memberForLog.guild.id).map(r => r.name).slice(0, 5) : [];
+                                                        const status = cancelled ? 'scheduled kick was cancelled' : 'no scheduled kick present';
+                                                        const msg = `[OB 4/4 ] **Onboarding Completed** ${memberForLog ? memberForLog.toString() : `<@${interaction.user.id}>`} | UserID: ${interaction.user.id} | <t:${Math.floor(accountCreatedTs/1000)}:R> | Roles = ${roleNames.length ? roleNames.join(', ') : 'none'} | ${status}`;
+                                                        await logChannel.send({ content: msg }).catch(() => null);
+                                                    }
                                             } catch (logErr) {
                                                 console.error('[onboarding] Failed to send scheduled-cancel log:', logErr);
                                             }
@@ -449,20 +444,12 @@ module.exports = {
                             const state = meta || {};
                             const getLabel = (v) => (v && (v.label || v.name || v.key)) || '—';
 
-                            const successEmbed = new EmbedBuilder()
-                                .setTitle('Onboarding Completed')
-                                .setColor(0x57F287)
-                                .setDescription(`${member ? `<@${interaction.user.id}>` : interaction.user.tag} (${interaction.user.id}) completed onboarding and passed captcha.`)
-                                .addFields(
-                                    { name: 'Pronoun', value: getLabel(state.pronoun), inline: true },
-                                    { name: 'Region', value: getLabel(state.continent), inline: true },
-                                    { name: 'Age', value: getLabel(state.age), inline: true },
-                                    { name: 'Gaming', value: getLabel(state.gaming), inline: true },
-                                    { name: 'Gate Role Removed', value: member ? (member.roles.cache.has(onboardingConfig.GATE_ROLE_ID) ? 'No' : 'Yes') : 'Unknown', inline: true },
-                                )
-                                .setTimestamp();
-
-                            await logChannel.send({ embeds: [successEmbed] }).catch(() => null);
+                            const memberForLog = member ?? (interaction.member ?? await interaction.guild.members.fetch(interaction.user.id).catch(() => null));
+                            const accountCreatedTs = memberForLog ? memberForLog.user.createdTimestamp : (interaction.user?.createdTimestamp || Date.now());
+                            const roleNames = memberForLog ? memberForLog.roles.cache.filter(r => r.id !== memberForLog.guild.id).map(r => r.name).slice(0, 5) : [];
+                            const pronounLabelLog = getLabel(state.pronoun);
+                            const msg = `[OB 4/4 ] **Onboarding Completed** ${memberForLog ? memberForLog.toString() : `<@${interaction.user.id}>`} | UserID: ${interaction.user.id} | <t:${Math.floor(accountCreatedTs/1000)}:R> | Roles = ${roleNames.length ? roleNames.join(', ') : 'none'} | Pronoun=${pronounLabelLog}`;
+                            await logChannel.send({ content: msg }).catch(() => null);
                         }
                     } catch (logErr) {
                         console.error('[onboarding] Failed to send onboarding success log:', logErr);

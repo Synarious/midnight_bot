@@ -1,6 +1,6 @@
-const { Events, EmbedBuilder } = require('discord.js');
+const { Events } = require('discord.js');
 const onboardingConfig = require('../data/onboardingConfig.js');
-const onboardingScheduler = require('../modules/onboardingScheduler.js');
+const onboardingScheduler = require('../modules/onboarding.js');
 
 // Config / constants
 const GATE_ROLE_ID = onboardingConfig.GATE_ROLE_ID || '1425702277410455654';
@@ -36,17 +36,10 @@ module.exports = {
             try {
                 const ch = member.guild.channels.cache.get(LOG_CHANNEL_ID) || await member.guild.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
                 if (ch && ch.send) {
-                    const embed = new EmbedBuilder()
-                        .setTitle('Member Joined')
-                        .setColor(0x2ECC71)
-                        .setDescription(`${member.user.tag} (${member.id}) joined the server.`)
-                        .addFields(
-                            { name: 'Joined At', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true },
-                            { name: 'Account', value: `<@${member.id}>`, inline: true },
-                        )
-                        .setTimestamp();
-
-                    await ch.send({ embeds: [embed] }).catch(() => null);
+                    const accountCreatedTs = member.user.createdTimestamp || Date.now();
+                    const roleNames = member.roles.cache.filter(r => r.id !== member.guild.id).map(r => r.name).slice(0, 5);
+                    const msg = `[OB 1/4 ] **Member Joined** ${member.toString()} | UserID: ${member.id} | <t:${Math.floor(accountCreatedTs/1000)}:R> | Roles = ${roleNames.length ? roleNames.join(', ') : 'none'}`;
+                    await ch.send({ content: msg }).catch(() => null);
                 }
             } catch (logErr) {
                 console.error('[onboarding] Failed to send join log:', logErr);
@@ -59,27 +52,9 @@ module.exports = {
                     const ch = member.guild.channels.cache.get(LOG_CHANNEL_ID) || await member.guild.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
                     if (ch && ch.send) {
                         const accountCreatedTs = member.user.createdTimestamp || Date.now();
-                        const accountAgeDays = Math.floor((Date.now() - accountCreatedTs) / (24 * 60 * 60 * 1000));
-                        const joinedAtTs = member.joinedTimestamp || Date.now();
                         const roleNames = member.roles.cache.filter(r => r.id !== member.guild.id).map(r => r.name).slice(0, 5);
-
-                        const schedEmbed = new EmbedBuilder()
-                            .setTitle('Onboarding Check Scheduled')
-                            .setColor(0x3498DB)
-                            .setDescription(`${member.user.tag} (${member.id}) has an onboarding check scheduled in ${Math.round(KICK_DELAY_MS / 1000)} seconds.`)
-                            .addFields(
-                                { name: 'Process PID', value: String(process.pid), inline: true },
-                                { name: 'Account Created', value: `<t:${Math.floor(accountCreatedTs / 1000)}:R>`, inline: true },
-                                { name: 'Account Age', value: `${accountAgeDays} day(s)`, inline: true },
-                                { name: 'Joined At', value: `<t:${Math.floor(joinedAtTs / 1000)}:F>`, inline: true },
-                                { name: 'Roles (sample)', value: roleNames.length ? roleNames.join(', ') : 'none', inline: false },
-                                { name: 'Gate Role', value: `${GATE_ROLE_ID}`, inline: true },
-                                { name: 'Exempt Role 1', value: `${EXEMPT_ROLE_1}`, inline: true },
-                                { name: 'Exempt Role 2', value: `${EXEMPT_ROLE_2}`, inline: true },
-                            )
-                            .setTimestamp();
-
-                        await ch.send({ embeds: [schedEmbed] }).catch(() => null);
+                        const msg = `[OB 2/4 ] **Timer Started** ${member.toString()} | UserID: ${member.id} | <t:${Math.floor(accountCreatedTs/1000)}:R> | Roles = ${roleNames.length ? roleNames.join(', ') : 'none'}`;
+                        await ch.send({ content: msg }).catch(() => null);
                     }
                 } catch (err) {
                     console.error('[onboarding] Failed to send scheduling debug embed:', err);
@@ -98,31 +73,15 @@ module.exports = {
                     const hasGate = freshForDebug ? freshForDebug.roles.cache.has(GATE_ROLE_ID) : false;
                     const hasExempt = freshForDebug ? (freshForDebug.roles.cache.has(EXEMPT_ROLE_1) || freshForDebug.roles.cache.has(EXEMPT_ROLE_2)) : false;
 
-                    if (ch && ch.send) {
-                        const schedulerHasEntry = require('../modules/onboardingScheduler.js').has(member.id);
+                        if (ch && ch.send) {
+                        const schedulerHasEntry = onboardingScheduler.has(member.id);
                         const accountCreatedTs = freshForDebug?.user?.createdTimestamp || Date.now();
                         const accountAgeDays = Math.floor((Date.now() - accountCreatedTs) / (24 * 60 * 60 * 1000));
                         const joinedAtTs = freshForDebug?.joinedTimestamp || member.joinedTimestamp || Date.now();
                         const roleNames = freshForDebug ? freshForDebug.roles.cache.filter(r => r.id !== freshForDebug.guild.id).map(r => r.name).slice(0, 8) : [];
 
-                        const runEmbed = new EmbedBuilder()
-                            .setTitle('Onboarding Check Running')
-                            .setColor(0x9B59B6)
-                            .setDescription(`${member.user.tag} (${member.id}) scheduled check is now running.`)
-                            .addFields(
-                                { name: 'Process PID', value: String(process.pid), inline: true },
-                                { name: 'Joined (secs ago)', value: `${joinedAgoSec}`, inline: true },
-                                { name: 'Account Created', value: `<t:${Math.floor(accountCreatedTs / 1000)}:R>`, inline: true },
-                                { name: 'Account Age', value: `${accountAgeDays} day(s)`, inline: true },
-                                { name: 'Has Gate Role', value: String(hasGate), inline: true },
-                                { name: 'Has Any Exempt Role', value: String(hasExempt), inline: true },
-                                { name: 'Scheduler Present', value: String(schedulerHasEntry), inline: true },
-                                    { name: 'Kick Attempted', value: 'false', inline: true },
-                                { name: 'Roles (sample)', value: roleNames.length ? roleNames.join(', ') : 'none', inline: false }
-                            )
-                            .setTimestamp();
-
-                        await ch.send({ embeds: [runEmbed] }).catch(() => null);
+                        const msg = `[OB 3/4 ] **Kick Pending** ${member.toString()} | UserID: ${member.id} | <t:${Math.floor(accountCreatedTs/1000)}:R> | Roles = ${roleNames.length ? roleNames.join(', ') : 'none'}`;
+                        await ch.send({ content: msg }).catch(() => null);
                     }
                 } catch (dbgErr) {
                     console.error('[onboarding] Failed to send scheduled-run debug embed:', dbgErr);
@@ -177,17 +136,11 @@ module.exports = {
                             try {
                                 const ch = member.guild.channels.cache.get(LOG_CHANNEL_ID) || await member.guild.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
                                 if (ch && ch.send) {
-                                    const embed = new EmbedBuilder()
-                                        .setTitle('Onboarding Kick Aborted')
-                                        .setColor(0xE67E22)
-                                        .setDescription(`${fresh.user.tag} (${fresh.id}) met criteria but bot lacks permissions or appropriate role position to kick.`)
-                                        .addFields(
-                                            { name: 'Can Kick', value: String(Boolean(canKick)), inline: true },
-                                            { name: 'Role Hierarchy OK', value: String(Boolean(roleHierarchyOk)), inline: true },
-                                        )
-                                        .setTimestamp();
-                                    await ch.send({ embeds: [embed] }).catch(() => null);
-                                }
+                                        const accountCreatedTs = fresh?.user?.createdTimestamp || Date.now();
+                                        const roleNames = fresh.roles.cache.filter(r => r.id !== fresh.guild.id).map(r => r.name).slice(0, 5);
+                                        const msg = `[OB 3/4 ] **Kick Pending** ${fresh.toString()} | UserID: ${fresh.id} | <t:${Math.floor(accountCreatedTs/1000)}:R> | Roles = ${roleNames.length ? roleNames.join(', ') : 'none'}`;
+                                        await ch.send({ content: msg }).catch(() => null);
+                                    }
                             } catch (logErr) {
                                 console.error('[onboarding] Failed to send abort log:', logErr);
                             }
@@ -198,19 +151,10 @@ module.exports = {
                         try {
                             const ch = member.guild.channels.cache.get(LOG_CHANNEL_ID) || await member.guild.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
                             if (ch && ch.send) {
-                                const pendingEmbed = new EmbedBuilder()
-                                    .setTitle('Onboarding Kick Pending')
-                                    .setColor(0xF1C40F)
-                                    .setDescription(`${fresh.user.tag} (${fresh.id}) meets the onboarding-failure criteria and will be kicked in 5 seconds unless the situation changes.`)
-                                    .addFields(
-                            { name: 'Had Gate Role', value: String(cond2), inline: true },
-                            { name: 'Exempt Roles Present', value: String(!cond3), inline: true },
-                                        { name: `Joined in window (>= ${Math.round(LOWER_AGE_MS/1000)}s and <= ${Math.round(UPPER_AGE_MS/1000)}s)`, value: String(cond1), inline: true },
-                                            { name: 'Kick Attempted', value: 'false', inline: true },
-                                    )
-                                    .setTimestamp();
-
-                                await ch.send({ embeds: [pendingEmbed] }).catch(() => null);
+                                const accountCreatedTs = fresh?.user?.createdTimestamp || Date.now();
+                                const roleNames = fresh.roles.cache.filter(r => r.id !== fresh.guild.id).map(r => r.name).slice(0, 5);
+                                const msg = `[OB 3/4 ] **Kick Pending** ${fresh.toString()} | UserID: ${fresh.id} | <t:${Math.floor(accountCreatedTs/1000)}:R> | Roles = ${roleNames.length ? roleNames.join(', ') : 'none'}`;
+                                await ch.send({ content: msg }).catch(() => null);
                             }
                         } catch (logErr) {
                             console.error('[onboarding] Failed to send pending kick log:', logErr);
@@ -234,19 +178,10 @@ module.exports = {
                             try {
                                 const ch = member.guild.channels.cache.get(LOG_CHANNEL_ID) || await member.guild.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
                                 if (ch && ch.send) {
-                                    const embed = new EmbedBuilder()
-                                        .setTitle('Onboarding Kick Aborted')
-                                        .setColor(0x95A5A6)
-                                        .setDescription(`${fresh2.user.tag} (${fresh2.id}) no longer meets the kick criteria after final check.`)
-                                        .addFields(
-                                            { name: 'Had Gate Role (now)', value: String(cond2b), inline: true },
-                                            { name: 'Exempt Roles Present (now)', value: String(!cond3b), inline: true },
-                                            { name: `Joined in window (>= ${Math.round(LOWER_AGE_MS/1000)}s and <= ${Math.round(UPPER_AGE_MS/1000)}s)`, value: String(cond1b), inline: true },
-                                                { name: 'Kick Attempted', value: 'false', inline: true },
-                                        )
-                                        .setTimestamp();
-
-                                    await ch.send({ embeds: [embed] }).catch(() => null);
+                                    const accountCreatedTs = fresh2?.user?.createdTimestamp || Date.now();
+                                    const roleNames = fresh2.roles.cache.filter(r => r.id !== fresh2.guild.id).map(r => r.name).slice(0, 5);
+                                    const msg = `[OB 3/4 ] **Kick Pending** ${fresh2.toString()} | UserID: ${fresh2.id} | <t:${Math.floor(accountCreatedTs/1000)}:R> | Roles = ${roleNames.length ? roleNames.join(', ') : 'none'}`;
+                                    await ch.send({ content: msg }).catch(() => null);
                                 }
                             } catch (logErr) {
                                 console.error('[onboarding] Failed to send abort-after-final-check log:', logErr);
@@ -266,20 +201,12 @@ module.exports = {
                         // send failure embed to log channel
                         try {
                             const ch = member.guild.channels.cache.get(LOG_CHANNEL_ID) || await member.guild.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
-                            if (ch && ch.send) {
-                                const embed = new EmbedBuilder()
-                                    .setTitle('Failed to Complete Onboarding')
-                                    .setColor(0xE74C3C)
-                                    .setDescription(`${fresh2.user.tag} (${fresh2.id}) ${kicked ? 'was kicked' : 'met criteria but kick failed' } for not completing onboarding.`)
-                                    .addFields(
-                                        { name: 'Had Gate Role', value: String(cond2b), inline: true },
-                                        { name: 'Exempt Roles Present', value: String(!cond3b), inline: true },
-                                        { name: 'Joined Recent (30m)', value: String(cond1b), inline: true },
-                                            { name: 'Kick Attempted', value: String(kicked), inline: true },
-                                    )
-                                    .setTimestamp();
-
-                                await ch.send({ embeds: [embed] }).catch(() => null);
+                                if (ch && ch.send) {
+                                const accountCreatedTs = fresh2?.user?.createdTimestamp || Date.now();
+                                const roleNames = fresh2.roles.cache.filter(r => r.id !== fresh2.guild.id).map(r => r.name).slice(0, 5);
+                                const status = kicked ? 'Kick Successful' : 'Kick Failed';
+                                const msg = `[OB 4/4 ] **${status}** ${fresh2.toString()} | UserID: ${fresh2.id} | <t:${Math.floor(accountCreatedTs/1000)}:R> | Roles = ${roleNames.length ? roleNames.join(', ') : 'none'}`;
+                                await ch.send({ content: msg }).catch(() => null);
                             }
                         } catch (logErr) {
                             console.error('[onboarding] Failed to send onboarding-kick embed:', logErr);

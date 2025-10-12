@@ -34,7 +34,7 @@ const ONBOARDING_CATEGORIES = [
       { id: '1346009391907737631', name: 'North America', emoji: '🌎', key: 'na' },
       { id: '1346008779929550891', name: 'South America', emoji: '🌎', key: 'sa' },
       { id: '1346007791344680980', name: 'Europe', emoji: '🌍', key: 'eu' },
-      { id: '1346008958178955366', name: 'Asia', emoji: '🌏', key: 'asia' },
+      { id: '1346008937371275317', name: 'Asia', emoji: '🌏', key: 'asia' },
       { id: '1346008958178955366', name: 'Australia', emoji: '🦘', key: 'oceania' },
       { id: '1346009038306934836', name: 'Africa', emoji: '🌍', key: 'africa' }
     ]
