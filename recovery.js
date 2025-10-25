@@ -68,8 +68,21 @@ async function fixBackupFile(filePath) {
 async function listBackupFiles() {
     try {
         const files = await fs.readdir(backupDir);
-        const sqlFiles = files.filter(f => f.endsWith('.sql')).sort().reverse();
-        return sqlFiles;
+        // Exclude in-progress/temp files and fixed files from the primary listing
+        const sqlFiles = files
+            .filter(f => f.endsWith('.sql'))
+            .filter(f => !f.includes('.inprogress'))
+            .filter(f => !f.endsWith('-fixed.sql'))
+            .map(f => ({ name: f }));
+
+        // Sort by modification time (newest first)
+        const filesWithStat = await Promise.all(sqlFiles.map(async (item) => {
+            const stat = await fs.stat(path.join(backupDir, item.name));
+            return { name: item.name, mtimeMs: stat.mtimeMs };
+        }));
+
+        filesWithStat.sort((a, b) => b.mtimeMs - a.mtimeMs);
+        return filesWithStat.map(i => i.name);
     } catch (err) {
         console.error('[ERROR] Failed to read backup directory:', err);
         return [];
@@ -94,8 +107,8 @@ async function getBackupPreview(filePath) {
  * Restores the database from a backup file
  */
 async function restoreDatabase(backupFilePath) {
-    // Fix any syntax errors in the backup file first
-    const fixedBackupPath = await fixBackupFile(backupFilePath);
+    // Fix any syntax errors in the backup file first (skip if already fixed)
+    const fixedBackupPath = backupFilePath.endsWith('-fixed.sql') ? backupFilePath : await fixBackupFile(backupFilePath);
     
     // When running the recovery script, always connect to the exposed port on localhost
     // since this script is designed to be run from the host machine
@@ -114,12 +127,14 @@ async function restoreDatabase(backupFilePath) {
         console.log('[INFO] Connected successfully.');
 
         console.log('[INFO] Reading backup file...');
-        const sqlContent = await fs.readFile(fixedBackupPath, 'utf-8');
+    const sqlContent = await fs.readFile(fixedBackupPath, 'utf-8');
 
         console.log('[INFO] Executing SQL commands...');
         console.log('[WARN] This will DROP and recreate all tables!');
         
-        await client.query(sqlContent);
+    // Execute as a single statement batch - pg client supports multiple statements if configured.
+    // Use simple query execution; large SQL files may need to be piped via psql for better performance.
+    await client.query(sqlContent);
 
         console.log('[SUCCESS] Database restored successfully!');
         return true;

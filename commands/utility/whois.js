@@ -574,4 +574,8 @@ module.exports = {
 
     return embeds;
   }
+,
+
+  // Rate limit: 2 seconds 
+  rateLimit: 2000,
 };

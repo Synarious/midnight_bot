@@ -273,4 +273,8 @@ module.exports = {
             await interaction.reply({ content: 'An error occurred while saving the setting to the database.', ephemeral: true });
         }
     },
+
+
+  // Rate limit: 10 seconds (heavy operation)
+  rateLimit: 10000,
 };

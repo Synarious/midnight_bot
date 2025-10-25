@@ -1,5 +1,5 @@
 const path = require('path');
-const dbBackup = require('../../modules/dbBackup.js');
+const dbBackup = require('../../utils/dbBackup.js');
 
 module.exports = {
   name: 'db-backup',
@@ -45,4 +45,8 @@ module.exports = {
 
     return message.reply(`✅ Backup completed in ${durationSeconds}s. Saved to \`${relativePath}\` (${fileSizeMB} MB).`);
   },
+
+
+  // Rate limit: 20 seconds 
+  rateLimit: 20000,
 };

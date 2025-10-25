@@ -138,4 +138,8 @@ module.exports = {
             }
         }
     }
+,
+
+  // Rate limit: 5 seconds (moderation action)
+  rateLimit: 5000,
 };

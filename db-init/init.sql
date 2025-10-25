@@ -106,6 +106,20 @@ CREATE TABLE IF NOT EXISTS user_info (
     timestamp TEXT
 );
 
+-- Economy table: stores wallet and bank balances per user per guild
+CREATE TABLE IF NOT EXISTS guild_economy (
+    id SERIAL PRIMARY KEY,
+    guild_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    wallet BIGINT DEFAULT 0,
+    bank BIGINT DEFAULT 0,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (guild_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_guild_economy_guild
+    ON guild_economy (guild_id);
+
 CREATE INDEX IF NOT EXISTS idx_filtered_messages_guild_recorded_at
     ON filtered_messages (guild_id, recorded_at);
 

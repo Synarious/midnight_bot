@@ -16,7 +16,7 @@ module.exports = {
         
         // Remove # if present and validate hex format
         hex = hex.replace('#', '');
-        if (!/^[0-9A-Fa-f]{6}$/.test(hex)) {
+            if (!/^[0-9A-Fa-f]{6}$/.test(hex)) {
             return interaction.reply({ 
                 content: 'Please provide a valid hex color code (e.g. #FF0000)',
                 flags: MessageFlags.Ephemeral
@@ -45,4 +45,7 @@ module.exports = {
              });
         }
     },
+
+    // Rate limit: 2 seconds (API call)
+    rateLimit: 2000,
 };

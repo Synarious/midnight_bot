@@ -110,5 +110,8 @@ module.exports = {
         await interaction.reply({ content: 'An unexpected error occurred. The user might have an invalid ID or I may lack permissions.' });
       }
     }
-  }
+  },
+
+  // Rate limit: 5 seconds (moderation action)
+  rateLimit: 5000,
 };

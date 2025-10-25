@@ -1,6 +1,6 @@
 const { EmbedBuilder } = require('discord.js');
 const database = require('../../data/database.js');
-const dbBackup = require('../../modules/dbBackup.js');
+const dbBackup = require('../../utils/dbBackup.js');
 
 const MAX_ITERATIONS = 25;
 const DEFAULT_ITERATIONS = 5;
@@ -204,4 +204,8 @@ module.exports = {
 
     await statusMessage.edit({ content: null, embeds: [embed] });
   },
+
+
+  // Rate limit: 15 seconds (heavy operation)
+  rateLimit: 15000,
 };

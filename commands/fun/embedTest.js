@@ -119,4 +119,8 @@ module.exports = {
       });
     }
   },
+
+
+  // Rate limit: 2 seconds 
+  rateLimit: 2000,
 };

@@ -1,6 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const os = require('os');
-const db = require('../../data/database.js');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -45,4 +44,7 @@ module.exports = {
       });
     }
   },
+
+  // Rate limit: 1 second (1000ms)
+  rateLimit: 1000,
 };

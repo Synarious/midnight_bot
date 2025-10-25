@@ -3,6 +3,7 @@ services:
   bot:
     build: .
     restart: always
+    command: npm start
     # This waits for the database to be fully ready before starting the bot
     depends_on:
       db:
@@ -27,6 +28,12 @@ services:
       PGPASSWORD: ${PGPASSWORD}
       PGDATABASE: ${PGDATABASE}
       PGPORT: ${PGPORT}
+    # Healthcheck to ensure runtime is healthy (will run the runtime check script)
+    healthcheck:
+      test: ["CMD-SHELL", "node scripts/check_runtime.js"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   # The service for the PostgreSQL database
   db:

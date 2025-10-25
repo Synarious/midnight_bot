@@ -1,6 +1,10 @@
 const fs = require('fs');
 const path = require('path');
 const db = require('../data/database.js');
+const rateLimiter = require('../utils/rateLimiter');
+
+// Default rate limit for prefix commands (3 seconds)
+const DEFAULT_PREFIX_RATE_LIMIT = 3000;
 
 module.exports = {
   async execute(client, message) {
@@ -17,6 +21,12 @@ module.exports = {
       console.error(`[❌ DATABASE] Failed to get prefix for guild ${guildId}:`, err);
     }
 
+    // Defensive: ensure prefix is a non-empty string. DB may contain empty string which would
+    // make every message look like a command (startsWith('') === true).
+    if (typeof prefix !== 'string' || prefix.length === 0) {
+      prefix = '!';
+    }
+
     if (!message.content.startsWith(prefix)) return;
 
     const args = message.content.slice(prefix.length).trim().split(/ +/);
@@ -27,8 +37,37 @@ module.exports = {
 
     if (!command) return;
 
+    // Get rate limit for this command (check if underlying slash command has rateLimit)
+    let limitMs = DEFAULT_PREFIX_RATE_LIMIT;
+    const slashCommand = client.slashCommands.get(commandName);
+    if (slashCommand && slashCommand.rateLimit) {
+      limitMs = slashCommand.rateLimit;
+    }
+
+  // Check rate limit.
+  // If this command is a prefix adapter for a slash command, only perform a non-touching
+  // check here so we don't set the timestamp twice (the slash command path will record
+  // the usage). For legacy prefix-only commands we still touch the timestamp here.
+  const isAdapter = !!slashCommand;
+  const rateLimitCheck = rateLimiter.checkRateLimit(message.author.id, commandName, limitMs, isAdapter ? false : true);
+    if (rateLimitCheck.limited) {
+      const remainingSec = Math.ceil(rateLimitCheck.remainingMs / 1000);
+      console.warn(`[commandHandler] Rate limit hit: prefix command=${commandName} | User: ${message.author.tag} (${message.author.id}) | Remaining: ${remainingSec}s`);
+      
+      await rateLimiter.sendRateLimitResponse(message, rateLimitCheck.remainingMs, commandName);
+      return;
+    }
+
     try {
         await command.execute(message, args, client);
+
+        // For prefix adapters (slash command wrappers) we need to record the usage
+        // after the command successfully ran. We deferred touching above to avoid
+        // an immediate double-hit; now record the timestamp so subsequent calls are
+        // rate limited as expected.
+        if (isAdapter) {
+          try { rateLimiter.touchRateLimit(message.author.id, commandName); } catch (e) { /* best-effort */ }
+        }
     } catch (error) {
       console.error(`[❌ ERROR] Error executing command ${commandName}:`, error);
       await message.reply('❌ There was an error executing that command.');
@@ -62,8 +101,11 @@ module.exports = {
         },
         getString: (name) => {
           // If a specific option name is asked (e.g., 'reason'), return joined tail; otherwise pop sequential
+          // For 'reason' prefer the joined remainder, but if there's exactly one arg return it (single-word reason)
           if (name === 'reason') {
-            return options._args.length > 1 ? options._args.slice(1).join(' ') : null;
+            if (options._args.length > 1) return options._args.slice(1).join(' ');
+            if (options._args.length === 1) return options._args[0];
+            return null;
           }
           if (name === 'user_id') {
             return options._args[0] || null;
@@ -73,7 +115,9 @@ module.exports = {
         },
         getInteger: () => {
           const v = options.getString();
-          return v === null ? null : parseInt(v, 10);
+          if (v === null) return null;
+          const n = parseInt(v, 10);
+          return Number.isNaN(n) ? null : n;
         },
         getBoolean: (name) => {
           const argIndex = options._args.findIndex(arg => arg.toLowerCase() === `true` || arg.toLowerCase() === `false`);
@@ -93,12 +137,21 @@ module.exports = {
       pseudo.createdTimestamp = message.createdTimestamp;
       pseudo.client = client;
       pseudo.guild = message.guild;
+  // Provide guildId like a real Interaction so commands that use interaction.guildId work
+  pseudo.guildId = message.guild?.id || null;
       pseudo.channel = message.channel;
       pseudo.member = message.member;
       pseudo.user = message.author;
       pseudo.commandArgs = [...argsArr]; // Add commandArgs for traditional commands (create a copy)
 
-      pseudo.reply = (content) => message.reply(content);
+      pseudo.reply = async (payload) => {
+        pseudo.replied = true;
+        // Handle both object payload and string payload
+        if (typeof payload === 'object') {
+          return message.reply(payload);
+        }
+        return message.reply({ content: String(payload) });
+      };
 
       pseudo.deferReply = async (opts) => {
         // Simulate deferring by sending a visible placeholder message and marking deferred flag
@@ -117,15 +170,54 @@ module.exports = {
       pseudo.replied = false;
 
       pseudo.editReply = async (payload) => {
-        const text = (payload && (payload.content || (typeof payload === 'string' && payload))) || (typeof payload === 'string' ? payload : null);
         pseudo.replied = true;
         try {
           if (options._deferredMessage && typeof options._deferredMessage.edit === 'function') {
-            return options._deferredMessage.edit(typeof payload === 'object' && payload.content ? payload.content : String(text || ''));
+            // If payload is an object, ensure embeds are serialized and we don't send empty content
+            if (typeof payload === 'object') {
+              const editPayload = Object.assign({}, payload);
+
+              // Normalize embeds: convert EmbedBuilder instances to plain JSON
+              if (Array.isArray(editPayload.embeds) && editPayload.embeds.length > 0) {
+                editPayload.embeds = editPayload.embeds.map(e => (e && typeof e.toJSON === 'function') ? e.toJSON() : e);
+              }
+
+              // Remove empty content to avoid the API receiving an empty string
+              if (editPayload.content === '' || editPayload.content === null) {
+                delete editPayload.content;
+              }
+
+              // If there's no content and no embeds, provide a safe fallback message
+              if ((!editPayload.content || String(editPayload.content).trim() === '') && (!editPayload.embeds || editPayload.embeds.length === 0)) {
+                editPayload.content = 'Response ready';
+              }
+
+              return options._deferredMessage.edit(editPayload);
+            }
+
+            return options._deferredMessage.edit({ content: String(payload) });
           }
+
           // fallback to sending a new message
-          return message.reply(typeof payload === 'object' && payload.content ? payload.content : String(text || ''));
+          if (typeof payload === 'object') {
+            // Normalize embeds for message.reply as well
+            const replyPayload = Object.assign({}, payload);
+            if (Array.isArray(replyPayload.embeds) && replyPayload.embeds.length > 0) {
+              replyPayload.embeds = replyPayload.embeds.map(e => (e && typeof e.toJSON === 'function') ? e.toJSON() : e);
+            }
+            // Ensure there is at least content or embeds
+            if ((!replyPayload.content || String(replyPayload.content).trim() === '') && (!replyPayload.embeds || replyPayload.embeds.length === 0)) {
+              replyPayload.content = 'Response ready';
+            }
+            return message.reply(replyPayload);
+          }
+
+          return message.reply({ content: String(payload) });
         } catch (e) {
+          console.error('[Pseudo-interaction] editReply failed:', e);
+          console.error('[Pseudo-interaction] Payload was:', (() => {
+            try { return JSON.stringify(payload, null, 2); } catch (_) { return String(payload); }
+          })());
           return;
         }
       };
@@ -135,14 +227,25 @@ module.exports = {
       return pseudo;
     }
 
-    function readCommands(dir) {
+    // Statistics tracking
+    const stats = {
+      slashCommands: [],
+      legacyCommands: [],
+      prefixAdapters: [],
+      warnings: [],
+      errors: []
+    };
+
+    function readCommands(dir, categoryPath = '') {
       if (!fs.existsSync(dir)) return;
 
       const entries = fs.readdirSync(dir, { withFileTypes: true });
       for (const entry of entries) {
         const fullPath = path.join(dir, entry.name);
+        const currentCategory = categoryPath ? `${categoryPath}/${entry.name}` : entry.name;
+        
         if (entry.isDirectory()) {
-          readCommands(fullPath);
+          readCommands(fullPath, currentCategory);
           continue;
         }
 
@@ -154,10 +257,10 @@ module.exports = {
           // If this file is an old-style legacy command (exports `name`), register as-is
           if (command && typeof command.name === 'string' && typeof command.execute === 'function') {
             if (client.commands.has(command.name)) {
-              console.warn(`[⚠️ WARNING] Duplicate legacy command name '${command.name}' at ${fullPath}`);
+              stats.warnings.push(`Duplicate legacy command: ${command.name}`);
             } else {
               client.commands.set(command.name, command);
-              console.log(`✅ Loaded legacy command: ${command.name}`);
+              stats.legacyCommands.push({ name: command.name, category: categoryPath });
             }
             continue;
           }
@@ -166,17 +269,17 @@ module.exports = {
           if (command && command.data && typeof command.execute === 'function') {
             const name = command.data.name;
             if (!name) {
-              console.warn(`[⚠️ WARNING] Command at ${fullPath} has no name in its data.`);
+              stats.warnings.push(`Command at ${fullPath} has no name`);
               continue;
             }
 
             if (client.slashCommands.has(name)) {
-              console.warn(`[⚠️ WARNING] Duplicate slash command name '${name}' at ${fullPath}`);
+              stats.warnings.push(`Duplicate slash command: ${name}`);
               continue;
             }
 
             client.slashCommands.set(name, command);
-            console.log(`✅ Loaded slash command: ${name}`);
+            stats.slashCommands.push({ name, category: categoryPath, hasRateLimit: !!command.rateLimit });
 
             // If there isn't an existing legacy mapping, create an adapter so prefix users can run the same command
             if (!client.commands.has(name)) {
@@ -194,20 +297,76 @@ module.exports = {
                   }
                 },
               });
-              console.log(`🔁 Created prefix adapter for command: ${name}`);
+              stats.prefixAdapters.push(name);
             }
             continue;
           }
 
-          console.warn(`[⚠️ WARNING] Command file at ${fullPath} did not match legacy or slash contract.`);
+          stats.warnings.push(`Invalid command file: ${fullPath}`);
         } catch (err) {
-          console.error(`[❌ ERROR] Failed to load command ${fullPath}:`, err);
+          stats.errors.push({ file: fullPath, error: err.message });
         }
       }
     }
 
-    console.log('[INFO] Loading commands from /commands (unified loader)...');
+    console.log('\n┌─────────────────────────────────────────┐');
+    console.log('│     🤖 Loading Bot Commands...         │');
+    console.log('└─────────────────────────────────────────┘\n');
+    
     readCommands(commandsPath);
-    console.log('[INFO] Command loading complete. Legacy commands folder is no longer required; keep it only for custom legacy-only modules.');
+    
+    // Print organized results
+    console.log('📊 Command Loading Summary:');
+    console.log('─'.repeat(45));
+    
+    // Group slash commands by category
+    if (stats.slashCommands.length > 0) {
+      console.log('\n✨ Slash Commands:');
+      const byCategory = {};
+      stats.slashCommands.forEach(cmd => {
+        const cat = cmd.category || 'other';
+        if (!byCategory[cat]) byCategory[cat] = [];
+        byCategory[cat].push(cmd.name + (cmd.hasRateLimit ? ' ⏱️' : ''));
+      });
+      
+      Object.keys(byCategory).sort().forEach(cat => {
+        console.log(`   ${cat.padEnd(15)} → ${byCategory[cat].join(', ')}`);
+      });
+    }
+    
+    // Legacy commands
+    if (stats.legacyCommands.length > 0) {
+      console.log('\n🔧 Legacy Commands:');
+      const byCategory = {};
+      stats.legacyCommands.forEach(cmd => {
+        const cat = cmd.category || 'other';
+        if (!byCategory[cat]) byCategory[cat] = [];
+        byCategory[cat].push(cmd.name);
+      });
+      
+      Object.keys(byCategory).sort().forEach(cat => {
+        console.log(`   ${cat.padEnd(15)} → ${byCategory[cat].join(', ')}`);
+      });
+    }
+    
+    // Summary line
+    console.log('\n' + '─'.repeat(45));
+    console.log(`✅ Total: ${stats.slashCommands.length} slash + ${stats.legacyCommands.length} legacy`);
+    console.log(`🔁 Prefix adapters: ${stats.prefixAdapters.length} created`);
+    
+    // Warnings
+    if (stats.warnings.length > 0) {
+      console.log(`\n⚠️  Warnings (${stats.warnings.length}):`);
+      stats.warnings.forEach(w => console.log(`   • ${w}`));
+    }
+    
+    // Errors
+    if (stats.errors.length > 0) {
+      console.log(`\n❌ Errors (${stats.errors.length}):`);
+      stats.errors.forEach(e => console.log(`   • ${e.file}: ${e.error}`));
+    }
+    
+    console.log('\n' + '═'.repeat(45));
+    console.log('✓ Command loading complete!\n');
   }
 };

@@ -100,7 +100,7 @@ Adjust these values in `.env` if you need tighter controls or more aggressive lo
 ## Maintenance & Backups
 
 - Use `npm run migrate` after pulling updates to keep the schema current.
-- `modules/dbBackup.js` continues to create timestamped SQL dumps in `data/backup/`. Ensure `BOT_OWNER_ID` is specified so scheduled backups can report issues.
+- `utils/dbBackup.js` continues to create timestamped SQL dumps in `data/backup/`. Ensure `BOT_OWNER_ID` is specified so scheduled backups can report issues.
 
 ## Contributing
 

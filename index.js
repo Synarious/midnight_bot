@@ -1,28 +1,31 @@
 require('dotenv').config();
 
-function mask(v) {
-    if (!v) return '<missing>';
-    const s = String(v);
-    if (s.length <= 8) return '******';
-    return `${s.slice(0,4)}…${s.slice(-4)} (len=${s.length})`;
-}
-
-async function startupDebug() {
-    try {
-        console.log('[DEBUG] Startup secret diagnostics:');
-        console.log('  - env.DISCORD_TOKEN present:', Boolean(process.env.DISCORD_TOKEN));
-        console.log('  - env.TOKEN present:', Boolean(process.env.TOKEN));
-        console.log('  - process.env.DISCORD_TOKEN ->', mask(process.env.DISCORD_TOKEN));
-        console.log('  - process.env.TOKEN ->', mask(process.env.TOKEN));
-    } catch (err) {
-        console.warn('[DEBUG] startupDebug failed:', err && err.message ? err.message : err);
-    }
-}
-
-// Fire-and-forget startup debug; useful if login fails below
-startupDebug().catch(() => {});
 const fs = require('fs');
 const path = require('path');
+// Runtime compatibility check for discord.js v14+ features
+try {
+    const dj = require('discord.js');
+    const parts = (dj.version || '0.0.0').split('.').map(n => parseInt(n, 10));
+    const major = parts[0] || 0;
+    if (major < 14) {
+        console.error('[FATAL] discord.js v14 or higher is required. Found version:', dj.version);
+        process.exit(1);
+    }
+
+    // Ensure API pieces we rely on exist
+    const missing = [];
+    if (typeof dj.ContainerBuilder !== 'function') missing.push('ContainerBuilder');
+    if (typeof dj.TextDisplayBuilder !== 'function') missing.push('TextDisplayBuilder');
+    if (!dj.MessageFlags || dj.MessageFlags.IsComponentsV2 === undefined) missing.push('MessageFlags.IsComponentsV2');
+    if (missing.length > 0) {
+        console.error('[FATAL] Required discord.js features are missing:', missing.join(', '));
+        console.error('Please install a compatible discord.js v14 build. Current version:', dj.version);
+        process.exit(1);
+    }
+} catch (e) {
+    console.error('[FATAL] Unable to verify discord.js runtime. Ensure discord.js v14 is installed. Error:', e && e.message);
+    process.exit(1);
+}
 const { Client, Collection, GatewayIntentBits, Partials, Events } = require('discord.js');
 
 /**
@@ -32,10 +35,11 @@ const { Client, Collection, GatewayIntentBits, Partials, Events } = require('dis
 console.log('[BOOT] Starting bot...');
 
 // --- Module Imports ---
-const muteHandler = require('./modules/muteHandler.js');
-const inviteTracker = require('./modules/inviteTracker.js');
-const dbBackup = require('./modules/dbBackup.js');
-const HealthCheck = require('./modules/healthcheck.js');
+const muteHandler = require('./features/moderation/muteHandler.js');
+const inviteTracker = require('./features/moderation/inviteTracker.js');
+const memberCache = require('./utils/MemberCacheManager.js');
+const dbBackup = require('./utils/dbBackup.js');
+const HealthCheck = require('./utils/healthcheck.js');
 const token = process.env.DISCORD_TOKEN;
 const database = require('./data/database.js');
 const commandHandler = require('./events/commandHandler.js');
@@ -145,9 +149,17 @@ client.once(Events.ClientReady, async c => {
         console.error('  └─ [ERROR] Failed to initialize Database Backup Scheduler:', e);
     }
     
+    try {
+        await memberCache.initialize(c);
+        console.log('  └─ [Module] Initialized: Member Cache Manager');
+    } catch (e) {
+        console.error('  └─ [ERROR] Failed to initialize Member Cache Manager:', e);
+    }
+    
     // Start healthcheck monitoring
     try {
-        const healthcheck = new HealthCheck(process.env.HEALTHCHECK_URL, 3);
+    // Ping external healthcheck every 5 minutes (300 seconds)
+    const healthcheck = new HealthCheck(process.env.HEALTHCHECK_URL, 5 * 60);
         healthcheck.start();
         console.log('  └─ [Module] Initialized: Healthcheck Monitor');
         
@@ -173,10 +185,17 @@ client.once(Events.ClientReady, async c => {
 client.on(Events.GuildMemberAdd, member => {
     muteHandler.handleMemberJoin(member);
     inviteTracker.handleMemberJoin(member);
+    memberCache.addMember(member);
 });
 
 client.on(Events.GuildMemberRemove, member => {
     inviteTracker.handleMemberLeave(member);
+    memberCache.removeMember(member);
+});
+
+client.on(Events.GuildMemberUpdate, (oldMember, newMember) => {
+    // Update cache when member's nickname, username, or roles change
+    memberCache.updateMember(newMember);
 });
 
 client.on(Events.InviteCreate, invite => {
@@ -185,6 +204,15 @@ client.on(Events.InviteCreate, invite => {
 
 client.on(Events.GuildCreate, guild => {
     inviteTracker.handleGuildCreate(guild);
+    // Initialize member cache for new guild
+    memberCache.buildCacheForGuild(guild).catch(err => {
+        console.error(`[MemberCache] Failed to initialize cache for new guild ${guild.name}:`, err);
+    });
+});
+
+client.on(Events.GuildDelete, guild => {
+    // Clean up member cache when bot leaves a guild
+    memberCache.cleanupGuild(guild.id);
 });
 
 client.on('messageCreate', (message) => {

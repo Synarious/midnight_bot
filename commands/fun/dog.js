@@ -23,7 +23,10 @@ module.exports = {
   await interaction.reply({ embeds: [dogEmbed] });
     } catch (error) {
       console.error('❌ Error in dog command:', error);
-      await interaction.reply({ content: 'An error occurred while fetching the dog image.', flags: MessageFlags.Ephemeral });
+  await interaction.reply({ content: 'An error occurred while fetching the dog image.', flags: MessageFlags.Ephemeral });
     }
   },
+
+  // Rate limit: 4 seconds (API call)
+  rateLimit: 4000,
 };

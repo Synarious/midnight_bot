@@ -217,4 +217,8 @@ module.exports = {
       await interaction.channel?.send({ embeds: [helpEmbed] });
     }
   }
+,
+
+  // Rate limit: 3 seconds 
+  rateLimit: 3000,
 };

@@ -1,4 +1,5 @@
-const { getActiveMute, getExpiredMutes, deactivateMute, getAllActiveMutes } = require('../data/database.js');
+const { getActiveMute, getExpiredMutes, deactivateMute, getAllActiveMutes } = require('../../data/database.js');
+const memberCache = require('../../utils/MemberCacheManager.js');
 
 const CHECK_INTERVAL = 30 * 1000; // Check for expired mutes every 30 seconds
 const FAILSAFE_INTERVAL = 5 * 60 * 1000; // Failsafe check every 5 minutes
@@ -78,11 +79,10 @@ async function checkActiveMutesFailsafe(client) {
             const guild = client.guilds.cache.get(mute.guild_id);
             if (!guild) continue;
 
-            const settings = await require('../data/database.js').getGuildSettings(guild.id);
+            const settings = await require('../../data/database.js').getGuildSettings(guild.id);
             if (!settings || !settings.mute_roleid) continue;
 
-            // In a real scenario with MemberCacheManager, you might use it here for efficiency.
-            // For now, we fetch from cache first, then the API as a fallback.
+            // Try cache first, then fetch from API as fallback
             let member = guild.members.cache.get(mute.user_id);
             if (!member) {
                 member = await guild.members.fetch(mute.user_id).catch(() => null);
@@ -110,7 +110,7 @@ async function handleMemberJoin(member) {
     try {
         const activeMute = await getActiveMute(member.guild.id, member.id);
         if (activeMute) {
-            const settings = await require('../data/database.js').getGuildSettings(member.guild.id);
+            const settings = await require('../../data/database.js').getGuildSettings(member.guild.id);
             if (!settings || !settings.mute_roleid) return;
 
             const muteRole = member.guild.roles.cache.get(settings.mute_roleid);
@@ -118,7 +118,11 @@ async function handleMemberJoin(member) {
                 console.log(`[MuteHandler] Re-applying mute to returning member ${member.user.tag}.`);
                 await member.roles.add(muteRole).catch(err => {
                     console.error(`[❌ MuteHandler] Failed to re-apply mute on join for ${member.id}:`, err);
+                    return; // Exit early if role add fails
                 });
+
+                // Log to action log channel
+                await logRemute(member, activeMute, settings);
             }
         }
     } catch (error) {
@@ -151,6 +155,55 @@ async function unmuteUser(member, muteRecord) {
         console.error(`[❌ MuteHandler] Failed to unmute user ${member.id}:`, error);
         // If the unmute fails (e.g., permissions), we don't deactivate the record,
         // so the system will try again on the next interval.
+    }
+}
+
+/**
+ * Logs a remute action to the guild's action log channel.
+ * @param {import('discord.js').GuildMember} member
+ * @param {object} muteRecord The active mute record from the database
+ * @param {object} settings Guild settings containing channel IDs
+ */
+async function logRemute(member, muteRecord, settings) {
+    try {
+        const { EmbedBuilder } = require('discord.js');
+        
+        // Use guild-specific action log from DB
+        const logChannelId = settings.ch_actionlog ?? settings.ch_actionLog;
+        if (!logChannelId) {
+            console.log(`[MuteHandler] No action log configured for guild ${member.guild.id}. Cannot log remute for ${member.id}`);
+            return;
+        }
+
+        const logChannel = await member.guild.channels.fetch(logChannelId).catch(() => null);
+        if (!logChannel) {
+            console.error(`[MuteHandler] Configured action log channel ${logChannelId} for guild ${member.guild.id} not found or inaccessible.`);
+            return;
+        }
+
+        // Handle both 'expires' (TEXT) and 'expires_at' (TIMESTAMPTZ) fields
+        const expiresValue = muteRecord.expires_at || muteRecord.expires;
+        const expiresTimestamp = expiresValue ? Math.floor(parseInt(expiresValue) / 1000) : null;
+        
+        const embed = new EmbedBuilder()
+            .setTitle('Member Re-Muted (Rejoin)')
+            .setColor(0xFFA500) // Orange
+            .addFields(
+                { name: 'User', value: `${member.user.tag} (${member.id})`, inline: true },
+                { name: 'Original Moderator', value: `<@${muteRecord.actioned_by}>`, inline: true },
+                { name: 'Duration', value: muteRecord.length || 'Unknown', inline: true },
+                { name: 'Expires', value: expiresTimestamp ? `<t:${expiresTimestamp}:R>` : 'Unknown', inline: true },
+                { name: 'Reason', value: muteRecord.reason || 'No reason provided.', inline: false },
+                { name: 'Note', value: '⚠️ User rejoined the server with an active mute and was automatically re-muted.', inline: false }
+            )
+            .setTimestamp();
+
+        await logChannel.send({ embeds: [embed] }).catch(err => {
+            console.error(`[MuteHandler] Failed to send remute log to channel ${logChannelId} for guild ${member.guild.id}:`, err);
+        });
+
+    } catch (error) {
+        console.error('[❌ MuteHandler] Error in logRemute:', error);
     }
 }
 

@@ -184,4 +184,8 @@ module.exports = {
             return interaction.editReply("An error occurred while trying to mute this user. I may be missing permissions.");
         }
     },
+
+
+  // Rate limit: 5 seconds (moderation action)
+  rateLimit: 5000,
 };

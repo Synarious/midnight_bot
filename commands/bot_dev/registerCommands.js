@@ -114,4 +114,8 @@ module.exports = {
       return message.reply('❌ Failed to register commands. Check console logs.');
     }
   },
+
+
+  // Rate limit: 10 seconds 
+  rateLimit: 10000,
 };

@@ -26,4 +26,7 @@ module.exports = {
             });
         }
     },
+
+    // Rate limit: 5 seconds (API call)
+    rateLimit: 5000,
 };

@@ -11,11 +11,11 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    const emojiInput = interaction.options.getString('emoji');
+  const emojiInput = interaction.options.getString('emoji');
 
-    // Regex to match custom emoji format
-    const emojiRegex = /<(a?):(\w+):(\d+)>/;
-    const match = emojiInput.match(emojiRegex);
+  // Regex to match custom emoji format - allows names with hyphens and other non-space/non-colon characters
+  const emojiRegex = /<(a?):([^:\s>]+):(\d+)>/;
+  const match = emojiInput.match(emojiRegex);
 
     if (!match) {
       return interaction.reply({
@@ -35,4 +35,8 @@ module.exports = {
       content: `🔗 Emoji URL for \`${emojiName}\`: ${emojiURL}`
     });
   }
+,
+
+  // Rate limit: 2 seconds 
+  rateLimit: 2000,
 };

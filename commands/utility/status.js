@@ -1,6 +1,7 @@
 const {
 	SlashCommandBuilder,
 	MessageFlags,
+	EmbedBuilder,
 	TextDisplayBuilder,
 	ContainerBuilder,
 } = require('discord.js');
@@ -14,7 +15,7 @@ module.exports = {
 
 	async execute(interaction) {
 		try {
-			await interaction.deferReply({ withResponse: true });
+			await interaction.deferReply();
 
 			// Helper: format uptime seconds to Hh Mm Ss
 			const formatUptime = (seconds) => {
@@ -92,7 +93,7 @@ module.exports = {
 				diskFreeMB = -1;
 			}
 
-			const systemText = new TextDisplayBuilder().setContent(
+			const systemContent =
 				`# System Status\n` +
 				`🖥️ ⁞ System Uptime: \`${formatUptime(systemUptimeSec)}\`\n` +
 				`🤖 ⁞ Bot Uptime: \`${formatUptime(botUptimeSec)}\`\n\n` +
@@ -106,11 +107,11 @@ module.exports = {
 					? `💽 Disk Space Remaining: \`${diskFreeMB.toFixed(2)} MB\`\n`
 					: `💽 Disk Space Remaining: \`Unavailable\`\n`
 				) +
-				`🧠 Platform: \`${os.platform()} (${os.arch()})\`\n`
-			);
+				`🧠 Platform: \`${os.platform()} (${os.arch()})\`\n`;
 
+			// Use Container/TextDisplay and Components V2 directly (targeting discord.js v14+)
+			const systemText = new TextDisplayBuilder().setContent(systemContent);
 			const container = new ContainerBuilder().addTextDisplayComponents(systemText);
-
 			await interaction.editReply({
 				flags: MessageFlags.IsComponentsV2,
 				components: [container],
@@ -126,4 +127,8 @@ module.exports = {
 			}
 		}
 	},
+
+
+  // Rate limit: 2 seconds 
+  rateLimit: 2000,
 };

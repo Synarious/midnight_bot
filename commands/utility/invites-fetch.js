@@ -423,4 +423,8 @@ module.exports = {
             await interaction.editReply('❌ An error occurred during the retroactive scan. Check console for details.');
         }
     }
+,
+
+  // Rate limit: 3 seconds 
+  rateLimit: 3000,
 };

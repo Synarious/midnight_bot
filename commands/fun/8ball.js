@@ -112,5 +112,8 @@ module.exports = {
 
         const response = responses[Math.floor(Math.random() * responses.length)];
         return message.reply(response);
-    }
+    },
+
+    // Rate limit: 3 seconds
+    rateLimit: 3000,
 };

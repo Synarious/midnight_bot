@@ -1,5 +1,5 @@
 const { Events } = require('discord.js');
-const inviteTracker = require('../modules/inviteTracker.js');
+const inviteTracker = require('../features/moderation/inviteTracker.js');
 
 module.exports = {
     name: Events.InviteCreate,

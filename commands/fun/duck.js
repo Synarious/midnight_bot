@@ -33,4 +33,7 @@ module.exports = {
       await interaction.reply({ content: 'An error occurred while fetching a duck image.', ephemeral: true });
     }
   },
+
+  // Rate limit: 4 seconds (API call)
+  rateLimit: 4000,
 };

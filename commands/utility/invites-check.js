@@ -295,4 +295,8 @@ module.exports = {
             }
         }
     },
+
+
+  // Rate limit: 3 seconds 
+  rateLimit: 3000,
 };

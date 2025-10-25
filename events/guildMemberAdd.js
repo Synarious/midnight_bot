@@ -1,9 +1,10 @@
 const { Events } = require('discord.js');
-const onboardingConfig = require('../data/onboardingConfig.js');
-const onboardingScheduler = require('../modules/onboarding.js');
+// Use the onboarding feature module (exports scheduler API and config) so onboarding logic is
+// fully contained under features/onboarding
+const onboarding = require('../features/onboarding');
 
 // Config / constants
-const GATE_ROLE_ID = onboardingConfig.GATE_ROLE_ID || '1425702277410455654';
+const GATE_ROLE_ID = onboarding.GATE_ROLE_ID || '1425702277410455654';
 const EXEMPT_ROLE_1 = '1363401486465241149';
 const EXEMPT_ROLE_2 = '1346009162823241749';
 const LOG_CHANNEL_ID = '1425705491274928138';
@@ -61,7 +62,7 @@ module.exports = {
                 }
             })();
 
-            onboardingScheduler.schedule(member.id, async () => {
+            onboarding.schedule(member.id, async () => {
                 // Debug: announce that scheduled check is running
                 try {
                     const ch = member.guild.channels.cache.get(LOG_CHANNEL_ID) || await member.guild.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
@@ -74,7 +75,7 @@ module.exports = {
                     const hasExempt = freshForDebug ? (freshForDebug.roles.cache.has(EXEMPT_ROLE_1) || freshForDebug.roles.cache.has(EXEMPT_ROLE_2)) : false;
 
                         if (ch && ch.send) {
-                        const schedulerHasEntry = onboardingScheduler.has(member.id);
+                        const schedulerHasEntry = onboarding.has(member.id);
                         const accountCreatedTs = freshForDebug?.user?.createdTimestamp || Date.now();
                         const accountAgeDays = Math.floor((Date.now() - accountCreatedTs) / (24 * 60 * 60 * 1000));
                         const joinedAtTs = freshForDebug?.joinedTimestamp || member.joinedTimestamp || Date.now();
@@ -116,8 +117,29 @@ module.exports = {
 
                     if (cond1 && cond2 && cond3) {
                         // FINAL SAFETY: verify bot can actually kick and its role is high enough
-                        const me = await fresh.guild.members.fetchMe().catch(() => null);
-                        const canKick = me && me.permissions.has('KickMembers');
+                        // Resolve the bot's GuildMember instance in a version-agnostic way
+                        let me = null;
+                        try {
+                            // discord.js v14 exposes guild.members.me; prefer it if available
+                            if (fresh.guild?.members?.me) {
+                                me = fresh.guild.members.me;
+                            } else if (typeof fresh.guild?.members?.fetchMe === 'function') {
+                                me = await fresh.guild.members.fetchMe().catch(() => null);
+                            } else if (typeof fresh.guild?.members?.fetch === 'function') {
+                                // Fallback: fetch the bot user by client id if available
+                                const clientId = fresh.guild?.client?.user?.id;
+                                if (clientId) {
+                                    me = await fresh.guild.members.fetch(clientId).catch(() => null);
+                                }
+                            }
+                        } catch (meErr) {
+                            me = null;
+                        }
+
+                        // Use PermissionsBitField flags when available (discord.js v14). Fallback to string.
+                        const { PermissionsBitField } = require('discord.js');
+                        const kickFlag = PermissionsBitField?.Flags?.KickMembers || 'KICK_MEMBERS' || 'KickMembers';
+                        const canKick = me && (typeof me.permissions?.has === 'function' ? me.permissions.has(kickFlag) : Boolean(me.permissions && me.permissions & kickFlag));
 
                         // Check role hierarchy: bot's highest role must be above the target's highest role and above the gate role
                         let roleHierarchyOk = false;

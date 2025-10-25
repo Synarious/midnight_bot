@@ -525,10 +525,19 @@ class DatabaseService {
       }
     };
 
-    runSweep('startup').catch((error) => {
-      log('error', 'Initial data retention sweep failed', { error: error.message });
-    });
+    // Optionally run an initial sweep on startup. Some deployments prefer to avoid heavy
+    // queries at startup (and avoid consuming DB rate-limiter tokens). Make this opt-in
+    // via DB_RUN_RETENTION_ON_STARTUP=1. Default: do NOT run on startup.
+    const runOnStartup = String(process.env.DB_RUN_RETENTION_ON_STARTUP || '0') === '1';
+    if (runOnStartup) {
+      runSweep('startup').catch((error) => {
+        log('error', 'Initial data retention sweep failed', { error: error.message });
+      });
+    } else {
+      log('info', 'Skipping initial data retention sweep (set DB_RUN_RETENTION_ON_STARTUP=1 to enable)');
+    }
 
+    // Schedule periodic sweeps
     this.retentionTimer = setInterval(() => {
       runSweep('interval').catch((error) => {
         log('error', 'Scheduled data retention sweep failed', { error: error.message });

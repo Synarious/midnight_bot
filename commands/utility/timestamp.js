@@ -259,4 +259,7 @@ module.exports = {
       return interaction.reply('Sorry, there was an error processing that time!');
     }
   },
+
+  // Rate limit: 2 seconds (2000ms)
+  rateLimit: 2000,
 };

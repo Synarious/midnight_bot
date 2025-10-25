@@ -83,15 +83,17 @@ function getCategoryRoleIds(category) {
 function createOnboardingSelectMenus() {
   const rows = [];
 
-  for (const category of ONBOARDING_CATEGORIES) {
+    for (const category of ONBOARDING_CATEGORIES) {
     const options = category.roles.map(role => ({
       label: role.name,
       value: role.key,
       emoji: role.emoji || undefined,
     }));
+    // Sanitize category name for use in custom IDs (no spaces or special chars)
+    const safeCategoryId = category.name.toLowerCase().replace(/\W+/g, '_').replace(/^_+|_+$/g, '');
 
     const selectMenu = new StringSelectMenuBuilder()
-      .setCustomId(`onboarding_select:${category.name.toLowerCase()}`)
+      .setCustomId(`onboarding_select:${safeCategoryId}`)
       .setPlaceholder(`Select your ${category.name.toLowerCase()}`)
       .setMinValues(category.selectionType === 'REQUIRED_ONE' ? 1 : 0)
       .setMaxValues(
@@ -187,4 +189,8 @@ module.exports = {
   GATE_ROLE_ID,
   getCategoryByName,
   getCategoryRoleIds,
+
+
+  // Rate limit: 5 seconds 
+  rateLimit: 5000,
 };

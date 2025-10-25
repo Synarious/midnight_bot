@@ -1,5 +1,5 @@
 const { EmbedBuilder, AuditLogEvent } = require('discord.js');
-const { getGuildSettings, pool } = require('../data/database.js');
+const { getGuildSettings, pool } = require('../../data/database.js');
 
 /**
  * Invite tracking module that monitors invite creation/usage and logs to database

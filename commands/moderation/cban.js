@@ -111,4 +111,8 @@ module.exports = {
             return interaction.reply({ content: 'There was an error trying to ban that user.', ephemeral: true });
         }
     }
+,
+
+  // Rate limit: 5 seconds (moderation action)
+  rateLimit: 5000,
 };
