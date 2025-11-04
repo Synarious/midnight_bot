@@ -28,6 +28,9 @@ services:
       PGPASSWORD: ${PGPASSWORD}
       PGDATABASE: ${PGDATABASE}
       PGPORT: ${PGPORT}
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     # Healthcheck to ensure runtime is healthy (will run the runtime check script)
     healthcheck:
       test: ["CMD-SHELL", "node scripts/check_runtime.js"]

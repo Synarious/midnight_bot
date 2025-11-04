@@ -8,7 +8,6 @@ const { getLogChannelId, filteringAI, isOpenAIEnabled, getGuildSettings } = requ
 // --- CONFIGURATION ---
 
 const debug = false;
-const moderationModel = process.env.OPENAI_MODERATION_MODEL || 'text-moderation-latest';
 
 const softCategoryThresholds = {
     'hate': 0.2,
@@ -65,14 +64,11 @@ const infractionCategories = {
 
 async function checkMessageModeration(content) {
     try {
-        if (debug) console.log(`[MODERATION] Sending content to OpenAI Moderation API using model: ${moderationModel}`);
+        if (debug) console.log(`[MODERATION] Sending content to OpenAI Moderation API.`);
         const response = await axios.post(
             'https://api.openai.com/v1/moderations',
-            // --- THE ONLY REQUIRED CHANGE IS HERE ---
-            // We now specify the model to use.
             {
                 input: content,
-                model: moderationModel,
             },
             {
                 headers: {

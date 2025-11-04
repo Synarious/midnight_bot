@@ -22,11 +22,22 @@ module.exports = {
 
         const content = message.content;
 
+        // 🔍 Keywords for romantic RP
+        const romanticKeywords = /\b(cuddle|hug|kiss|nuzzle|wiggle|snuggle|purr|lick|blush)s?\b/i;
+
         // 🔍 Check for *RP-style italics*
         const italicMatches = [...content.matchAll(/\*(?!\*)(.+?)\*(?!\*)/g)];
         for (const match of italicMatches) {
             const italic = match[1].trim();
-            if (/^[a-z]{2,}(?:\s[a-z]{2,}){0,3}[.?!]*$/i.test(italic)) {
+
+            // Check for romantic keywords within italics
+            if (romanticKeywords.test(italic)) {
+                return warnAndDelete(message, `*${italic}*`);
+            }
+            
+            // Only flag multi-word italic actions as RP (single-word italics are allowed
+            // unless they match the explicit romanticKeywords list above).
+            if (/^[a-z]{2,}(?:\s[a-z]{2,}){1,3}[.?!]*$/i.test(italic)) {
                 return warnAndDelete(message, `*${italic}*`);
             }
         }
