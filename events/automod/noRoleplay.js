@@ -1,7 +1,7 @@
 const { Events } = require('discord.js');
 
 // ✅ RP filter only runs in these channels
-const WHITELISTED_CHANNELS = ['1346007514193330178', '663234840530780173', '1363405990866714704'];
+const WHITELISTED_CHANNELS = ['1346007514193330178', '663234840530780173', '1349213872854401044', '1349213872854401044'];
 
 // ⛔ Users with these roles are ignored
 const IGNORED_ROLES = [''];
@@ -28,18 +28,23 @@ module.exports = {
         // 🔍 Check for *RP-style italics*
         const italicMatches = [...content.matchAll(/\*(?!\*)(.+?)\*(?!\*)/g)];
         for (const match of italicMatches) {
-            const italic = match[1].trim();
+            // Trim and sanitize the captured italic text. Sometimes users combine
+            // single- and double-asterisk formatting (e.g. "*LETS GO?**") which can
+            // leave stray asterisks inside the captured group. Remove leading/trailing
+            // asterisks before running the RP tests.
+            const italicRaw = match[1] || '';
+            const italic = italicRaw.replace(/^\*+|\*+$/g, '').trim();
 
-            // Check for romantic keywords within italics
-            if (romanticKeywords.test(italic)) {
+            // Normalize repeated letters (e.g., "cudddle" -> "cuddle") before
+            // testing so common elongated spellings still match the keyword list.
+            const normalizedItalic = italic.replace(/(.)\1{2,}/ig, '$1$1');
+            if (romanticKeywords.test(normalizedItalic)) {
                 return warnAndDelete(message, `*${italic}*`);
             }
-            
-            // Only flag multi-word italic actions as RP (single-word italics are allowed
-            // unless they match the explicit romanticKeywords list above).
-            if (/^[a-z]{2,}(?:\s[a-z]{2,}){1,3}[.?!]*$/i.test(italic)) {
-                return warnAndDelete(message, `*${italic}*`);
-            }
+
+            // Only flag when romantic keywords are present inside single-asterisk
+            // italics (e.g. *cuddle*, *he cuddles*). This avoids broader multi-word
+            // heuristics that produce false positives on shouty or generic italic text.
         }
     }
 };
@@ -50,7 +55,7 @@ async function warnAndDelete(message, matchedPhrase) {
 
         // Send private warning via DM instead of public channel message
         await message.author.send({
-            content: `⚠️ Your message in **${message.guild.name}** (#${message.channel.name}) was removed for roleplay content.\n\nKeep roleplay to your DMs, follow server rules and help keep topics inclusive for everyone!\n\n*Matched phrase: ${matchedPhrase}*`
+            content: `⚠️ Your message in **${message.guild.name}** (#${message.channel.name}) was removed for roleplay content.\n\nKeep roleplay to your DMs, follow server rules and help keep topics inclusive for everyone!\n\nMatched phrase: ${matchedPhrase}`
         }).catch(() => {
             // If DM fails, send a brief ephemeral-style message that auto-deletes quickly
             message.channel.send({

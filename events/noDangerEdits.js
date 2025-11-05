@@ -3,6 +3,10 @@ const { EmbedBuilder } = require('discord.js');
 const LOG_CHANNEL_ID = '1431690606350041098';
 const PING_ROLE_ID = '1421008653200261222';
 const FORBIDDEN_WORDS_REGEX = /\b(child|children|kid|kids|young|babies|baby|age|old|years|school|elementary|daycare)\b/i;
+// Channels to ignore (add channel IDs here to exempt them from this check)
+const IGNORED_CHANNELS = ['1349213872854401044'];
+// Roles to ignore (add role IDs here to exempt members from this check)
+const IGNORED_ROLES = ['1346009162823241749'];
 
 module.exports = {
     name: 'messageUpdate',
@@ -13,6 +17,13 @@ module.exports = {
         if (newMessage.author.bot || oldContent === newContent) {
             return;
         }
+
+        // Ignore configured channels
+        if (IGNORED_CHANNELS.includes(newMessage.channel.id)) return;
+
+        // Ignore users who have any of the bypass roles
+        const member = await newMessage.guild.members.fetch(newMessage.author.id).catch(() => null);
+        if (member && member.roles.cache.some(role => IGNORED_ROLES.includes(role.id))) return;
 
         // Only act when the new edited message contains one of the monitored words
         if (!FORBIDDEN_WORDS_REGEX.test(newContent)) {
