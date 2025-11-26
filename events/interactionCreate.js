@@ -3,6 +3,7 @@ const rateLimiter = require('../utils/rateLimiter');
 
 // Import feature handlers
 const onboarding = require('../features/onboarding');
+const wowGuild = require('../features/onboarding/wowGuild');
 const moderation = require('../features/moderation');
 const roleMenu = require('../features/roleMenu');
 
@@ -10,6 +11,7 @@ const roleMenu = require('../features/roleMenu');
 // Order matters: features are checked in this order for each interaction
 const FEATURES = [
     { name: 'onboarding', module: onboarding },
+    { name: 'wowGuild', module: wowGuild },
     { name: 'moderation', module: moderation },
     { name: 'roleMenu', module: roleMenu }
 ];
