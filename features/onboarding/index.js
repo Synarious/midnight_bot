@@ -65,7 +65,7 @@ const activeCaptchas = new Map();
 const userSelections = new Map();
 const timeouts = new Map(); // scheduler state
 
-const EXPIRATION_MS = 1 * 60 * 1000; // 1 minute
+const EXPIRATION_MS = 10 * 60 * 1000; // 10 minutes
 
 function generateCode() {
     const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
