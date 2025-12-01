@@ -1,7 +1,7 @@
 const { EmbedBuilder } = require('discord.js');
 
 const LOG_CHANNEL_ID = '1431690606350041098';
-const PING_ROLE_ID = '1421008653200261222';
+const PING_ROLE_ID = '';
 const FORBIDDEN_WORDS_REGEX = /\b(child|children|kid|kids|young|babies|baby|age|old|years|school|elementary|daycare)\b/i;
 // Channels to ignore (add channel IDs here to exempt them from this check)
 const IGNORED_CHANNELS = ['1349213872854401044'];
