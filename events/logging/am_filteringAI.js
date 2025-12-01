@@ -214,15 +214,8 @@ module.exports = {
             try {
                 const logChannel = await message.guild.channels.fetch(logChannelId);
                 if (logChannel) {
-                    // Get admin roles from guild settings for mentions
-                    let mention = '';
-                    if (severity === 'hard' && guildSettings?.roles_admin) {
-                        const adminRoles = JSON.parse(guildSettings.roles_admin || '[]');
-                        if (adminRoles.length > 0) {
-                            mention = adminRoles.map(roleId => `<@&${roleId}>`).join(' ') + ' ';
-                        }
-                    }
-                    await logChannel.send({ content: mention, embeds: [embed] });
+                    // Send only the embed to the log channel (no role mentions)
+                    await logChannel.send({ embeds: [embed] });
                     if (debug) console.log('[MODERATION] Sent log message successfully.');
                 }
             } catch (e) {
