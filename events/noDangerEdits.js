@@ -7,10 +7,17 @@ const FORBIDDEN_WORDS_REGEX = /\b(child|children|kid|kids|young|babies|baby|age|
 const IGNORED_CHANNELS = ['1349213872854401044'];
 // Roles to ignore (add role IDs here to exempt members from this check)
 const IGNORED_ROLES = ['1346009162823241749'];
+// Guilds to enable this feature in (empty array means all guilds)
+const ALLOWED_GUILD_IDS = ['1346007513237295144'];
 
 module.exports = {
     name: 'messageUpdate',
     async execute(oldMessage, newMessage) {
+        // Ignore if not in an allowed guild
+        if (ALLOWED_GUILD_IDS.length > 0 && !ALLOWED_GUILD_IDS.includes(newMessage.guild?.id)) {
+            return;
+        }
+
         // Ignore bots and messages with no content change
         const oldContent = (oldMessage.content || '');
         const newContent = (newMessage.content || '');
