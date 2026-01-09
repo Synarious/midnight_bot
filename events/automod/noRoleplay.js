@@ -1,53 +1,73 @@
 const { Events } = require('discord.js');
+const { getNoRoleplaySettings } = require('../../data/automodSettings');
 
-// ✅ RP filter only runs in these channels
-const WHITELISTED_CHANNELS = ['1346007514193330178', '663234840530780173', '1349213872854401044', '1349213872854401044'];
-
-// ⛔ Users with these roles are ignored
-const IGNORED_ROLES = [''];
+// Default settings (used as fallback)
+const DEFAULT_ROMANTIC_KEYWORDS = /\b(cuddle|hug|kiss|nuzzle|wiggle|snuggle|purr|lick|blush)s?\b/i;
 
 module.exports = {
     name: Events.MessageCreate,
     async execute(message) {
         if (message.author.bot || !message.guild) return;
 
-        // ✅ Only run filter in whitelisted channels
-        if (!WHITELISTED_CHANNELS.includes(message.channel.id)) return;
+        try {
+            // Get guild-specific settings from database
+            const settings = await getNoRoleplaySettings(message.guild.id);
+            
+            // If no settings exist or feature is disabled, skip
+            if (!settings || !settings.enabled) return;
 
-        // ⛔ Ignore users with bypass roles
-        const member = await message.guild.members.fetch(message.author.id).catch(() => null);
-        if (member && member.roles.cache.some(role => IGNORED_ROLES.includes(role.id))) {
-            return;
-        }
-
-        const content = message.content;
-
-        // 🔍 Keywords for romantic RP
-        const romanticKeywords = /\b(cuddle|hug|kiss|nuzzle|wiggle|snuggle|purr|lick|blush)s?\b/i;
-
-        // 🔍 Check for *RP-style italics*
-        const italicMatches = [...content.matchAll(/\*(?!\*)(.+?)\*(?!\*)/g)];
-        for (const match of italicMatches) {
-            // Trim and sanitize the captured italic text. Sometimes users combine
-            // single- and double-asterisk formatting (e.g. "*LETS GO?**") which can
-            // leave stray asterisks inside the captured group. Remove leading/trailing
-            // asterisks before running the RP tests.
-            const italicRaw = match[1] || '';
-            const italic = italicRaw.replace(/^\*+|\*+$/g, '').trim();
-
-            // Normalize repeated letters (e.g., "cudddle" -> "cuddle") before
-            // testing so common elongated spellings still match the keyword list.
-            const normalizedItalic = italic.replace(/(.)\1{2,}/ig, '$1$1');
-            if (romanticKeywords.test(normalizedItalic)) {
-                return warnAndDelete(message, `*${italic}*`);
+            // Parse whitelisted channels
+            const whitelistedChannels = parseJsonArray(settings.whitelisted_channels);
+            
+            // Only run filter in whitelisted channels (if any are configured)
+            if (whitelistedChannels.length > 0 && !whitelistedChannels.includes(message.channel.id)) {
+                return;
             }
 
-            // Only flag when romantic keywords are present inside single-asterisk
-            // italics (e.g. *cuddle*, *he cuddles*). This avoids broader multi-word
-            // heuristics that produce false positives on shouty or generic italic text.
+            // Parse ignored roles
+            const ignoredRoles = parseJsonArray(settings.ignored_roles);
+
+            // Ignore users with bypass roles
+            const member = await message.guild.members.fetch(message.author.id).catch(() => null);
+            if (member && ignoredRoles.length > 0 && member.roles.cache.some(role => ignoredRoles.includes(role.id))) {
+                return;
+            }
+
+            const content = message.content;
+
+            // Build regex from database settings
+            const romanticKeywords = settings.romantic_keywords 
+                ? new RegExp(`\\b(${settings.romantic_keywords})s?\\b`, 'i')
+                : DEFAULT_ROMANTIC_KEYWORDS;
+
+            // Check for *RP-style italics*
+            const italicMatches = [...content.matchAll(/\*(?!\*)(.+?)\*(?!\*)/g)];
+            for (const match of italicMatches) {
+                const italicRaw = match[1] || '';
+                const italic = italicRaw.replace(/^\*+|\*+$/g, '').trim();
+
+                // Normalize repeated letters
+                const normalizedItalic = italic.replace(/(.)\1{2,}/ig, '$1$1');
+                if (romanticKeywords.test(normalizedItalic)) {
+                    return warnAndDelete(message, `*${italic}*`);
+                }
+            }
+        } catch (error) {
+            console.error('[noRoleplay] Error checking message:', error);
         }
     }
 };
+
+function parseJsonArray(value) {
+    if (!value) return [];
+    if (Array.isArray(value)) return value;
+    try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [];
+    }
+}
 
 async function warnAndDelete(message, matchedPhrase) {
     try {

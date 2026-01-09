@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Midnight Bot Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="/css/role-menu.css">
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 font-sans">
+    <div id="app">
+        <!-- Login Screen -->
+        <div id="login-screen" class="min-h-screen flex items-center justify-center">
+            <div class="bg-gray-800 rounded-lg p-8 w-full max-w-md shadow-xl border border-gray-700">
+                <div class="text-center mb-8">
+                    <div class="w-16 h-16 bg-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                        </svg>
+                    </div>
+                    <h1 class="text-2xl font-bold text-white">Midnight Bot</h1>
+                    <p class="text-gray-400 mt-2">Dashboard Login</p>
+                </div>
+                <form id="login-form" class="space-y-6">
+                    <div>
+                        <label for="username" class="block text-sm font-medium text-gray-300 mb-2">Username</label>
+                        <input type="text" id="username" name="username" required
+                            class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-white placeholder-gray-400"
+                            placeholder="Enter your username">
+                    </div>
+                    <div>
+                        <label for="password" class="block text-sm font-medium text-gray-300 mb-2">Password</label>
+                        <input type="password" id="password" name="password" required
+                            class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-white placeholder-gray-400"
+                            placeholder="Enter your password">
+                    </div>
+                    <div id="login-error" class="hidden text-red-400 text-sm text-center"></div>
+                    <button type="submit"
+                        class="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-colors">
+                        Sign In
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Main Dashboard -->
+        <div id="dashboard" class="hidden min-h-screen flex">
+            <!-- Sidebar -->
+            <aside class="w-60 bg-gray-800 border-r border-gray-700 flex flex-col fixed h-full">
+                <div class="h-16 flex items-center px-4 border-b border-gray-700">
+                    <div class="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center mr-3">
+                        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                        </svg>
+                    </div>
+                    <span class="font-semibold text-white">Midnight Bot</span>
+                </div>
+                
+                <!-- Guild Selector -->
+                <div class="p-4 border-b border-gray-700">
+                    <label class="block text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Guild ID</label>
+                    <input type="text" id="guild-id-input" 
+                        class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-sm text-white placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        placeholder="Enter Guild ID">
+                </div>
+
+                <!-- Navigation -->
+                <nav class="flex-1 overflow-y-auto py-4">
+                    <div class="px-4 mb-2">
+                        <span class="text-xs font-medium text-gray-500 uppercase tracking-wide">Overview</span>
+                    </div>
+                    <a href="#" class="nav-link active" data-section="dashboard">
+                        <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                        </svg>
+                        Dashboard
+                    </a>
+
+                    <div class="px-4 mb-2 mt-6">
+                        <span class="text-xs font-medium text-gray-500 uppercase tracking-wide">Automod</span>
+                    </div>
+                    <a href="#" class="nav-link" data-section="no-roleplay">
+                        <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path>
+                        </svg>
+                        No Roleplay
+                    </a>
+                    <a href="#" class="nav-link" data-section="no-danger-edits">
+                        <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                        </svg>
+                        No Danger Edits
+                    </a>
+                    <a href="#" class="nav-link" data-section="reply-thread">
+                        <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+                        </svg>
+                        Reply Threads
+                    </a>
+
+                    <div class="px-4 mb-2 mt-6">
+                        <span class="text-xs font-medium text-gray-500 uppercase tracking-wide">Onboarding</span>
+                    </div>
+                    <a href="#" class="nav-link" data-section="onboarding">
+                        <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path>
+                        </svg>
+                        Onboarding Config
+                    </a>
+                    <a href="#" class="nav-link" data-section="wow-guild">
+                        <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        WoW Guild
+                    </a>
+                    <a href="#" class="nav-link" data-section="wow-guest">
+                        <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                        </svg>
+                        WoW Guest
+                    </a>
+
+                    <div class="px-4 mb-2 mt-6">
+                        <span class="text-xs font-medium text-gray-500 uppercase tracking-wide">Analytics</span>
+                    </div>
+                    <a href="#" class="nav-link" data-section="activity">
+                        <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                        </svg>
+                        Activity
+                    </a>
+                    <a href="#" class="nav-link" data-section="levels">
+                        <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                        </svg>
+                        Levels
+                    </a>
+
+                    <div class="px-4 mb-2 mt-6" id="admin-nav-section">
+                        <span class="text-xs font-medium text-gray-500 uppercase tracking-wide">Admin</span>
+                    </div>
+                    <a href="#" class="nav-link admin-only" data-section="users">
+                        <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                        </svg>
+                        User Management
+                    </a>
+                </nav>
+
+                <!-- User Info -->
+                <div class="p-4 border-t border-gray-700">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <div class="w-8 h-8 bg-gray-600 rounded-full flex items-center justify-center mr-3">
+                                <svg class="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                                </svg>
+                            </div>
+                            <span id="user-display" class="text-sm text-gray-300">User</span>
+                        </div>
+                        <button id="logout-btn" class="text-gray-400 hover:text-white transition-colors">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Main Content -->
+            <main class="flex-1 ml-60">
+                <header class="h-16 bg-gray-800 border-b border-gray-700 flex items-center px-6">
+                    <h2 id="page-title" class="text-xl font-semibold text-white">Settings</h2>
+                </header>
+
+                <div class="p-6">
+                    <!-- Dashboard Overview Section -->
+                    <div id="dashboard-section" class="content-section">
+                        <!-- Stats Cards -->
+                        <div class="grid grid-cols-4 gap-6 mb-6">
+                            <div class="stat-card">
+                                <div class="stat-icon bg-indigo-600 bg-opacity-20">
+                                    <svg class="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                                    </svg>
+                                </div>
+                                <div class="stat-value" id="stat-total-members">--</div>
+                                <div class="stat-label">Total Members</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon bg-green-600 bg-opacity-20">
+                                    <svg class="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path>
+                                    </svg>
+                                </div>
+                                <div class="stat-value" id="stat-joins-today">--</div>
+                                <div class="stat-label">Joins Today</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon bg-red-600 bg-opacity-20">
+                                    <svg class="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path>
+                                    </svg>
+                                </div>
+                                <div class="stat-value" id="stat-mod-actions">--</div>
+                                <div class="stat-label">Mod Actions (7d)</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon bg-yellow-600 bg-opacity-20">
+                                    <svg class="w-6 h-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                                    </svg>
+                                </div>
+                                <div class="stat-value" id="stat-captcha-kicks">--</div>
+                                <div class="stat-label">Captcha Kicks</div>
+                            </div>
+                        </div>
+
+                        <!-- Charts Row -->
+                        <div class="grid grid-cols-2-1 gap-6">
+                            <!-- Server Activity Chart -->
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3 class="card-title">Server Activity (Last 7 Days)</h3>
+                                    <select id="activity-chart-range" class="form-input form-select-auto">
+                                        <option value="7">7 Days</option>
+                                        <option value="14">14 Days</option>
+                                        <option value="30">30 Days</option>
+                                    </select>
+                                </div>
+                                <div class="h-320">
+                                    <canvas id="activity-chart"></canvas>
+                                </div>
+                            </div>
+
+                            <!-- Moderation Action Breakdown -->
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3 class="card-title">Moderation Breakdown</h3>
+                                </div>
+                                <div class="flex items-center justify-center h-280">
+                                    <div class="chart-container-centered">
+                                        <canvas id="moderation-chart"></canvas>
+                                        <div id="moderation-total" class="chart-center-text">
+                                            <div class="text-2xl font-bold text-white">--</div>
+                                            <div class="text-xs text-gray-400">Total</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="moderation-legend" class="mt-4 space-y-2"></div>
+                            </div>
+                        </div>
+
+                        <!-- Recent Activity Table -->
+                        <div class="card mt-6">
+                            <div class="card-header">
+                                <h3 class="card-title">Recent Moderation Actions</h3>
+                            </div>
+                            <div class="table-container">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th class="w-140">Timestamp</th>
+                                            <th class="w-120">Action</th>
+                                            <th>User</th>
+                                            <th>Moderator</th>
+                                            <th>Reason</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="recent-actions-table">
+                                        <tr><td colspan="5" class="text-center text-gray-400 py-4">No recent actions</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- No Roleplay Section -->
+                    <div id="no-roleplay-section" class="content-section hidden">
+                        <form id="no-roleplay-form" class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">No Roleplay Settings</h3>
+                            </div>
+                            <div class="setting-row">
+                                <div class="setting-info">
+                                    <div class="setting-title">Enabled</div>
+                                    <div class="setting-description">Enable roleplay content filtering</div>
+                                </div>
+                                <label class="toggle">
+                                    <input type="checkbox" id="no-roleplay-enabled" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="form-group mt-4">
+                                <label class="form-label">Romantic Keywords (Regex Pattern)</label>
+                                <input type="text" id="no-roleplay-romantic-keywords" class="form-input font-mono" placeholder="cuddle|hug|kiss|nuzzle|wiggle|snuggle|purr|lick|blush">
+                                <p class="form-hint">Pipe-separated keywords that trigger the filter (e.g., cuddle|hug|kiss)</p>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Whitelisted Channels</label>
+                                <div id="no-roleplay-whitelisted-channels" class="array-input">
+                                    <input type="text" class="array-input-field" placeholder="Add channel ID and press Enter">
+                                </div>
+                                <p class="form-hint">Channel IDs where filter runs (leave empty for all channels)</p>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Ignored Roles</label>
+                                <div id="no-roleplay-ignored-roles" class="array-input">
+                                    <input type="text" class="array-input-field" placeholder="Add role ID and press Enter">
+                                </div>
+                                <p class="form-hint">Role IDs exempt from filtering</p>
+                            </div>
+                            <div class="mt-6">
+                                <button type="submit" class="btn btn-primary">Save Settings</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- No Danger Edits Section -->
+                    <div id="no-danger-edits-section" class="content-section hidden">
+                        <form id="no-danger-edits-form" class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">No Danger Edits Settings</h3>
+                            </div>
+                            <div class="setting-row">
+                                <div class="setting-info">
+                                    <div class="setting-title">Enabled</div>
+                                    <div class="setting-description">Enable dangerous edit detection</div>
+                                </div>
+                                <label class="toggle">
+                                    <input type="checkbox" id="danger-edits-enabled" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="setting-row">
+                                <div class="setting-info">
+                                    <div class="setting-title">Delete Message</div>
+                                    <div class="setting-description">Automatically delete offending messages</div>
+                                </div>
+                                <label class="toggle">
+                                    <input type="checkbox" id="danger-edits-delete-message" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="setting-row">
+                                <div class="setting-info">
+                                    <div class="setting-title">Mute User</div>
+                                    <div class="setting-description">Automatically timeout the user</div>
+                                </div>
+                                <label class="toggle">
+                                    <input type="checkbox" id="danger-edits-mute-user" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="form-group mt-4">
+                                <label class="form-label">Mute Duration (minutes)</label>
+                                <input type="number" id="danger-edits-mute-duration" class="form-input" value="60" min="1">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Log Channel ID</label>
+                                <input type="text" id="danger-edits-log-channel" class="form-input font-mono" placeholder="Channel ID for logging">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Ping Role ID</label>
+                                <input type="text" id="danger-edits-ping-role" class="form-input font-mono" placeholder="Role ID to ping on detection">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Forbidden Words Regex</label>
+                                <input type="text" id="danger-edits-forbidden-regex" class="form-input font-mono" placeholder="Regular expression pattern">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Ignored Channels</label>
+                                <div id="danger-edits-ignored-channels" class="array-input">
+                                    <input type="text" class="array-input-field" placeholder="Add channel ID and press Enter">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Ignored Roles</label>
+                                <div id="danger-edits-ignored-roles" class="array-input">
+                                    <input type="text" class="array-input-field" placeholder="Add role ID and press Enter">
+                                </div>
+                            </div>
+                            <div class="mt-6">
+                                <button type="submit" class="btn btn-primary">Save Settings</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Reply Thread Section -->
+                    <div id="reply-thread-section" class="content-section hidden">
+                        <form id="reply-thread-form" class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">Reply Thread Settings</h3>
+                            </div>
+                            <div class="setting-row">
+                                <div class="setting-info">
+                                    <div class="setting-title">Enabled</div>
+                                    <div class="setting-description">Enable automatic thread creation</div>
+                                </div>
+                                <label class="toggle">
+                                    <input type="checkbox" id="reply-thread-enabled" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="form-group mt-4">
+                                <label class="form-label">Introduction Channel ID</label>
+                                <input type="text" id="reply-thread-introduction-channel" class="form-input font-mono" placeholder="Introduction channel ID">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Debug Channel ID</label>
+                                <input type="text" id="reply-thread-debug-channel" class="form-input font-mono" placeholder="Debug channel ID">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Dating Phrases Regex</label>
+                                <input type="text" id="reply-thread-dating-regex" class="form-input font-mono" placeholder="Regex for dating phrase detection">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Dating Warning Message</label>
+                                <textarea id="reply-thread-warning-message" class="form-input form-textarea" placeholder="Warning message for dating phrases"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Thread Channels</label>
+                                <div id="reply-thread-channels" class="array-input">
+                                    <input type="text" class="array-input-field" placeholder="Add channel ID and press Enter">
+                                </div>
+                                <p class="form-hint">Channels where threads are auto-created</p>
+                            </div>
+                            <div class="mt-6">
+                                <button type="submit" class="btn btn-primary">Save Settings</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Onboarding Section -->
+                    <div id="onboarding-section" class="content-section hidden">
+                        <form id="onboarding-form" class="card mb-6">
+                            <div class="card-header">
+                                <h3 class="card-title">Onboarding Settings</h3>
+                            </div>
+                            <div class="setting-row">
+                                <div class="setting-info">
+                                    <div class="setting-title">Enabled</div>
+                                    <div class="setting-description">Enable onboarding system</div>
+                                </div>
+                                <label class="toggle">
+                                    <input type="checkbox" id="onboarding-enabled" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="form-group mt-4">
+                                <label class="form-label">Gate Role ID</label>
+                                <input type="text" id="onboarding-gate-role" class="form-input font-mono" placeholder="Role ID for new members">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Log Channel ID</label>
+                                <input type="text" id="onboarding-log-channel" class="form-input font-mono" placeholder="Channel ID for onboarding logs">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Welcome Channel ID</label>
+                                <input type="text" id="onboarding-welcome-channel" class="form-input font-mono" placeholder="Channel ID for welcome messages">
+                            </div>
+                            <div class="mt-6">
+                                <button type="submit" class="btn btn-primary">Save Settings</button>
+                            </div>
+                        </form>
+
+                        <div class="flex justify-end mb-4">
+                            <button class="btn btn-primary" data-action="createOnboardingCategory">
+                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                </svg>
+                                Create Category
+                            </button>
+                        </div>
+
+                        <div id="onboarding-roles-container" class="role-menu-container">
+                            <!-- Roles will be rendered here grouped by category -->
+                        </div>
+                    </div>
+
+                    <!-- WoW Guild Section -->
+                    <div id="wow-guild-section" class="content-section hidden">
+                        <form id="wow-guild-form" class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">WoW Guild Settings</h3>
+                            </div>
+                            <div class="setting-row">
+                                <div class="setting-info">
+                                    <div class="setting-title">Enabled</div>
+                                    <div class="setting-description">Enable WoW guild onboarding</div>
+                                </div>
+                                <label class="toggle">
+                                    <input type="checkbox" id="wow-guild-enabled" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="form-group mt-4">
+                                <label class="form-label">Onboarding Code</label>
+                                <input type="text" id="wow-guild-onboarding-code" class="form-input font-mono" placeholder="Secret code for guild verification">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Gate Role ID</label>
+                                <input type="text" id="wow-guild-gate-role" class="form-input font-mono" placeholder="Role ID for unverified members">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">WoW Member Role ID</label>
+                                <input type="text" id="wow-guild-member-role" class="form-input font-mono" placeholder="Role ID for verified guild members">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Onboarding Channel ID</label>
+                                <input type="text" id="wow-guild-onboarding-channel" class="form-input font-mono" placeholder="Channel for onboarding">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Welcome Channel ID</label>
+                                <input type="text" id="wow-guild-welcome-channel" class="form-input font-mono" placeholder="Channel for welcome messages">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Log Channel ID</label>
+                                <input type="text" id="wow-guild-log-channel" class="form-input font-mono" placeholder="Channel for logs">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Introduction Channel ID</label>
+                                <input type="text" id="wow-guild-intro-channel" class="form-input font-mono" placeholder="Channel for introductions">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Welcome Message</label>
+                                <textarea id="wow-guild-welcome-message" class="form-input form-textarea" placeholder="Welcome message for new members"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Code Prompt Message</label>
+                                <textarea id="wow-guild-code-prompt" class="form-input form-textarea" placeholder="Message asking for verification code"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Invalid Code Message</label>
+                                <textarea id="wow-guild-invalid-code" class="form-input form-textarea" placeholder="Message for invalid code"></textarea>
+                            </div>
+                            <div class="mt-6">
+                                <button type="submit" class="btn btn-primary">Save Settings</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- WoW Guest Section -->
+                    <div id="wow-guest-section" class="content-section hidden">
+                        <form id="wow-guest-form" class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">WoW Guest Settings</h3>
+                            </div>
+                            <div class="setting-row">
+                                <div class="setting-info">
+                                    <div class="setting-title">Enabled</div>
+                                    <div class="setting-description">Enable WoW guest onboarding</div>
+                                </div>
+                                <label class="toggle">
+                                    <input type="checkbox" id="wow-guest-enabled" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="form-group mt-4">
+                                <label class="form-label">Gate Role ID</label>
+                                <input type="text" id="wow-guest-gate-role" class="form-input font-mono" placeholder="Role ID for unverified members">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Guest Role ID</label>
+                                <input type="text" id="wow-guest-guest-role" class="form-input font-mono" placeholder="Role ID for guests">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Onboarding Channel ID</label>
+                                <input type="text" id="wow-guest-onboarding-channel" class="form-input font-mono" placeholder="Channel for onboarding">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Welcome Channel ID</label>
+                                <input type="text" id="wow-guest-welcome-channel" class="form-input font-mono" placeholder="Channel for welcome messages">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Log Channel ID</label>
+                                <input type="text" id="wow-guest-log-channel" class="form-input font-mono" placeholder="Channel for logs">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Introduction Channel ID</label>
+                                <input type="text" id="wow-guest-intro-channel" class="form-input font-mono" placeholder="Channel for introductions">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Welcome Message</label>
+                                <textarea id="wow-guest-welcome-message" class="form-input form-textarea" placeholder="Welcome message for guests"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Button Label</label>
+                                <input type="text" id="wow-guest-button-label" class="form-input" placeholder="Label for guest button">
+                            </div>
+                            <div class="mt-6">
+                                <button type="submit" class="btn btn-primary">Save Settings</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Activity Section -->
+                    <div id="activity-section" class="content-section hidden">
+                        <div class="card mb-6">
+                            <div class="card-header">
+                                <h3 class="card-title">Activity Tracking</h3>
+                                <select id="activity-days-range" class="form-input form-select-auto">
+                                    <option value="7">7 Days</option>
+                                    <option value="30">30 Days</option>
+                                    <option value="90" selected>90 Days</option>
+                                    <option value="180">180 Days</option>
+                                    <option value="365">365 Days</option>
+                                </select>
+                            </div>
+                            <div class="h-350 mb-8">
+                                <canvas id="message-activity-chart"></canvas>
+                            </div>
+                            <div class="h-350">
+                                <canvas id="voice-activity-chart"></canvas>
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3 class="card-title">Top 20 - Message Activity</h3>
+                                </div>
+                                <div class="h-350 flex-center-container">
+                                    <div class="w-300 h-300">
+                                        <canvas id="top-messages-chart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3 class="card-title">Top 20 - Voice Activity</h3>
+                                </div>
+                                <div class="h-350 flex-center-container">
+                                    <div class="w-300 h-300">
+                                        <canvas id="top-voice-chart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Levels Section -->
+                    <div id="levels-section" class="content-section hidden">
+                        <div class="card mb-6">
+                            <div class="card-header">
+                                <h3 class="card-title">Level Leaderboard</h3>
+                            </div>
+                            <div class="table-container">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th class="w-60">Rank</th>
+                                            <th>User ID</th>
+                                            <th>Level</th>
+                                            <th>Message XP</th>
+                                            <th>Voice XP</th>
+                                            <th>Total XP</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="leaderboard-table">
+                                        <tr><td colspan="6" class="text-center text-gray-400 py-4">Loading...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="card mb-6">
+                            <div class="card-header">
+                                <h3 class="card-title">Leveling Configuration</h3>
+                            </div>
+                            <form id="leveling-config-form">
+                                <div class="grid grid-cols-2 gap-4 mb-4">
+                                    <div class="form-group">
+                                        <label class="form-label">Rolling Period (Days)</label>
+                                        <input type="number" id="rolling-period-days" class="form-input" value="90">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Anti-Spam Level</label>
+                                        <select id="anti-spam-level" class="form-input">
+                                            <option value="soft">Soft (15s)</option>
+                                            <option value="low">Low (30s)</option>
+                                            <option value="medium">Medium (60s)</option>
+                                            <option value="high">High (120s)</option>
+                                            <option value="strict">Strict (5min)</option>
+                                            <option value="harsh">Harsh (15min)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="setting-row">
+                                    <div class="setting-info">
+                                        <div class="setting-title">Exclude Bots</div>
+                                        <div class="setting-description">Don't award XP to bot accounts</div>
+                                    </div>
+                                    <label class="toggle">
+                                        <input type="checkbox" id="exclude-bots" checked>
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                                <div class="setting-row">
+                                    <div class="setting-info">
+                                        <div class="setting-title">Exclude Muted Users</div>
+                                        <div class="setting-description">Don't award voice XP when muted</div>
+                                    </div>
+                                    <label class="toggle">
+                                        <input type="checkbox" id="exclude-muted">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                                <div class="setting-row">
+                                    <div class="setting-info">
+                                        <div class="setting-title">Exclude Deafened Users</div>
+                                        <div class="setting-description">Don't award voice XP when deafened</div>
+                                    </div>
+                                    <label class="toggle">
+                                        <input type="checkbox" id="exclude-deafened">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                                <div class="setting-row">
+                                    <div class="setting-info">
+                                        <div class="setting-title">Remove Previous Role</div>
+                                        <div class="setting-description">Remove lower-tier leveling roles when promoted</div>
+                                    </div>
+                                    <label class="toggle">
+                                        <input type="checkbox" id="remove-previous-role">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                                <div class="mt-6">
+                                    <button type="submit" class="btn btn-primary">Save Configuration</button>
+                                </div>
+                            </form>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">Leveling Roles</h3>
+                            </div>
+                            <form id="add-leveling-role-form" class="mb-6 p-4 bg-gray-700 rounded-lg">
+                                <div class="grid grid-cols-6 gap-4">
+                                    <div class="form-group">
+                                        <label class="form-label">Role ID</label>
+                                        <input type="text" id="new-role-id" class="form-input" placeholder="Role ID" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Msg XP Req</label>
+                                        <input type="number" id="new-msg-xp" class="form-input" value="0">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Voice XP Req</label>
+                                        <input type="number" id="new-voice-xp" class="form-input" value="0">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Logic</label>
+                                        <select id="new-logic-operator" class="form-input">
+                                            <option value="OR">OR</option>
+                                            <option value="AND">AND</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Period (Days)</label>
+                                        <input type="number" id="new-rolling-period" class="form-input" value="90">
+                                    </div>
+                                    <div class="form-group">
+                                        <button type="submit" class="btn btn-primary w-full mt-6">Add Role</button>
+                                    </div>
+                                </div>
+                            </form>
+                            <div class="table-container">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Role ID</th>
+                                            <th>Msg XP Required</th>
+                                            <th>Voice XP Required</th>
+                                            <th>Logic</th>
+                                            <th>Period (Days)</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="leveling-roles-table">
+                                        <tr><td colspan="6" class="text-center text-gray-400 py-4">No leveling roles configured</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Users Section -->
+                    <div id="users-section" class="content-section hidden">
+                        <div class="card mb-6">
+                            <div class="card-header">
+                                <h3 class="card-title">Add User</h3>
+                            </div>
+                            <form id="add-user-form" class="flex gap-4 items-end">
+                                <div class="flex-1">
+                                    <label class="form-label">Username</label>
+                                    <input type="text" id="new-username" class="form-input" placeholder="Username" required>
+                                </div>
+                                <div class="flex-1">
+                                    <label class="form-label">Password</label>
+                                    <input type="password" id="new-password" class="form-input" placeholder="Password" required>
+                                </div>
+                                <div>
+                                    <label class="form-label">Role</label>
+                                    <select id="new-role" class="form-input">
+                                        <option value="user">User</option>
+                                        <option value="admin">Admin</option>
+                                    </select>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Add User</button>
+                            </form>
+                        </div>
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">Users</h3>
+                            </div>
+                            <div class="table-container">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Username</th>
+                                            <th>Role</th>
+                                            <th>Created</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="users-table"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
+
+    <script src="/js/app.js"></script>
+    <script src="/js/activity-levels.js"></script>
+</body>
+</html>

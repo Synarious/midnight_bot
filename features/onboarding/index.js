@@ -1,62 +1,90 @@
 const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
 
-// ==================== ONBOARDING CONFIGURATION ====================
-// Gate role that is removed when user completes captcha
-const GATE_ROLE_ID = '1425702277410455654';
+const {
+    getOnboardingSettings
+} = require('../../data/automodSettings');
 
-const ONBOARDING_CATEGORIES = [
-    {
-        name: 'Pronouns',
-        description: 'Select your pronouns',
-        emoji: '🏳️‍🌈',
-        selectionType: 'REQUIRED_ONE',
-        roles: [
-            { id: '1346026355749425162', name: 'He/Him', emoji: '👨', key: 'hehim' },
-            { id: '1346026308253122591', name: 'She/Her', emoji: '👩', key: 'sheher' },
-            { id: '1346026355112022036', name: 'They/Them', emoji: '🧑', key: 'theythem' }
-        ]
-    },
-    {
-        name: 'Region',
-        description: 'Select your region',
-        emoji: '🌍',
-        selectionType: 'REQUIRED_ONE',
-        roles: [
-            { id: '1346009391907737631', name: 'North America', emoji: '🌎', key: 'na' },
-            { id: '1346008779929550891', name: 'South America', emoji: '🌎', key: 'sa' },
-            { id: '1346007791344680980', name: 'Europe', emoji: '🌍', key: 'eu' },
-            { id: '1346008958178955366', name: 'Asia', emoji: '🌏', key: 'asia' },
-            { id: '1346008958178955366', name: 'Australia', emoji: '🦘', key: 'oceania' },
-            { id: '1346009038306934836', name: 'Africa', emoji: '🌍', key: 'africa' }
-        ]
-    },
-    {
-        name: 'Age',
-        description: 'Select your age range',
-        emoji: '🎂',
-        selectionType: 'REQUIRED_ONE',
-        roles: [
-            { id: '1364164214272561203', name: '18-25', emoji: '🔞', key: 'age_18_25' },
-            { id: '1346238384003219577', name: '25+', emoji: '🔞', key: 'age_25_plus' }
-        ]
-    },
-    {
-        name: 'Gaming',
-        description: 'Do you enjoy video gaming?',
-        emoji: '🎮',
-        selectionType: 'REQUIRED_ONE',
-        roles: [
-            { id: '1363056342088290314', name: 'Gamer', emoji: '🎮', key: 'gamer' },
-            { id: '1363056678299504710', name: 'Grass Toucher', emoji: '🌱', key: 'grass' }
-        ]
+// ==================== ONBOARDING CONFIGURATION ====================
+// These values are now guild-configurable via the dashboard.
+
+const FALLBACK_LOG_CHANNEL_ID = '1425705491274928138';
+const FALLBACK_WELCOME_CHANNEL_ID = '1346007514193330178';
+const FALLBACK_CREW_CHANNEL_ID = '1372108730786910258';
+const DEFAULT_GATE_ROLE_ID = '1425702277410455654';
+
+function safeCategoryIdFromName(name) {
+    return String(name || '')
+        .toLowerCase()
+        .replace(/\W+/g, '_')
+        .replace(/^_+|_+$/g, '');
+}
+
+async function getConfigForInteraction(interaction) {
+    const guildId = interaction?.guild?.id;
+    if (!guildId) {
+        return {
+            gateRoleId: DEFAULT_GATE_ROLE_ID,
+            logChannelId: null,
+            welcomeChannelId: null,
+            categories: [],
+            enabled: true,
+        };
     }
-];
+    
+    try {
+        const data = await getOnboardingSettings(guildId);
+        if (!data || !data.settings) {
+            return {
+                gateRoleId: DEFAULT_GATE_ROLE_ID,
+                logChannelId: null,
+                welcomeChannelId: null,
+                categories: [],
+                enabled: true
+            };
+        }
+
+        return {
+            gateRoleId: data.settings.gate_role_id || DEFAULT_GATE_ROLE_ID,
+            logChannelId: data.settings.log_channel_id || null,
+            welcomeChannelId: data.settings.welcome_channel_id || null,
+            categories: data.categories.map(cat => ({
+                id: cat.id,
+                name: cat.name,
+                description: cat.description,
+                emoji: cat.emoji,
+                selectionType: cat.selection_type,
+                roles: cat.roles.map(r => ({
+                    id: r.role_id,
+                    name: r.name,
+                    emoji: r.emoji,
+                    key: r.key
+                }))
+            })),
+            enabled: data.settings.enabled
+        };
+    } catch (error) {
+        console.error('[Onboarding] Error fetching config:', error);
+        return {
+            gateRoleId: DEFAULT_GATE_ROLE_ID,
+            logChannelId: null,
+            welcomeChannelId: null,
+            categories: [],
+            enabled: true
+        };
+    }
+}
+
+// Helper to get config by guild ID directly (wrapper for getConfigForInteraction logic)
+async function getGuildOnboardingConfig(guildId) {
+    if (!guildId) return getConfigForInteraction(null);
+    return getConfigForInteraction({ guild: { id: guildId } });
+}
 
 /**
- * Get category by name
+ * Get category by name (sync fallback)
  */
 function getCategoryByName(categoryName) {
-    return ONBOARDING_CATEGORIES.find(cat => cat.name === categoryName);
+    return [];
 }
 
 // ==================== INTERNAL STATE & SCHEDULER ====================
@@ -197,13 +225,18 @@ async function handleButton(interaction) {
     if (!interaction.isButton() || interaction.customId !== 'onboarding_finish') return false;
 
     try {
+        const config = await getConfigForInteraction(interaction);
+        const categories = Array.isArray(config?.categories) && config.categories.length
+            ? config.categories
+            : DEFAULT_ONBOARDING_CATEGORIES;
+
         let state = getSelections(interaction.user.id);
 
         // If selections are missing (e.g., due to race or storage issue), fall back to checking member roles directly
         const memberForCheck = interaction.member ?? await interaction.guild.members.fetch(interaction.user.id);
         const ensureSelectionFromRoles = (categoryName, storageKey) => {
             if (state[storageKey]) return;
-            const cat = getCategoryByName(categoryName);
+            const cat = categories.find(c => c.name === categoryName);
             if (!cat || !Array.isArray(cat.roles)) return;
             for (const r of cat.roles) {
                 if (memberForCheck.roles.cache.has(r.id)) {
@@ -275,6 +308,11 @@ async function handleSelect(interaction) {
     if (!interaction.isStringSelectMenu() || !interaction.customId.startsWith('onboarding_select:')) return false;
 
     try {
+        const config = await getConfigForInteraction(interaction);
+        const categories = Array.isArray(config?.categories) && config.categories.length
+            ? config.categories
+            : DEFAULT_ONBOARDING_CATEGORIES;
+
         const categoryKey = interaction.customId.split(':')[1];
         
         // Map category keys to category names
@@ -288,7 +326,7 @@ async function handleSelect(interaction) {
         };
         
         const categoryName = categoryNameMap[categoryKey.toLowerCase()];
-        const categoryConfig = getCategoryByName(categoryName);
+        const categoryConfig = categories.find(c => c.name === categoryName);
 
         if (!categoryConfig) {
             await interaction.reply({ content: '⚠️ This selection is not configured yet. Please notify an administrator.', ephemeral: true });
@@ -406,6 +444,11 @@ async function handleModal(interaction) {
     if (!interaction.isModalSubmit() || interaction.customId !== 'captcha_modal') return false;
 
     try {
+        const config = await getConfigForInteraction(interaction);
+        const gateRoleId = config?.gateRoleId || DEFAULT_GATE_ROLE_ID;
+        const logChannelId = config?.logChannelId || FALLBACK_LOG_CHANNEL_ID;
+        const welcomeChannelId = config?.welcomeChannelId || FALLBACK_WELCOME_CHANNEL_ID;
+
         const submittedCode = interaction.fields.getTextInputValue('captchaInput');
         const validation = validateSession(interaction.user.id, submittedCode);
 
@@ -419,7 +462,6 @@ async function handleModal(interaction) {
 
             // Log failed attempt to the moderation/log channel
             try {
-                const logChannelId = '1425705491274928138';
                 const logChannel = interaction.guild.channels.cache.get(logChannelId) || await interaction.guild.channels.fetch(logChannelId).catch(() => null);
                 if (logChannel && logChannel.send) {
                     const currentSelections = getSelections(interaction.user.id) || {};
@@ -457,8 +499,7 @@ async function handleModal(interaction) {
 
             // Send a cancellation log to the moderation/log channel so we can trace it
             try {
-                const LOG_CHANNEL_ID = '1425705491274928138';
-                const logChannel = interaction.guild.channels.cache.get(LOG_CHANNEL_ID) || await interaction.guild.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
+                const logChannel = interaction.guild.channels.cache.get(logChannelId) || await interaction.guild.channels.fetch(logChannelId).catch(() => null);
                 if (logChannel && logChannel.send) {
                     const memberForLog = interaction.member ?? await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
                     const accountCreatedTs = memberForLog ? memberForLog.user.createdTimestamp : (interaction.user?.createdTimestamp || Date.now());
@@ -477,9 +518,9 @@ async function handleModal(interaction) {
         // Remove gate role if present
         const member = interaction.member ?? await interaction.guild.members.fetch(interaction.user.id);
         
-        if (member.roles.cache.has(GATE_ROLE_ID)) {
+        if (member.roles.cache.has(gateRoleId)) {
             try {
-                await member.roles.remove(GATE_ROLE_ID);
+                await member.roles.remove(gateRoleId);
                 console.log(`[onboarding] Removed gate role from user ${interaction.user.id}`);
             } catch (error) {
                 console.error(`[onboarding] Failed to remove gate role from user ${interaction.user.id}:`, error);
@@ -508,8 +549,7 @@ async function handleModal(interaction) {
         (async () => {
             try {
                 const { EmbedBuilder } = require('discord.js');
-                const welcomeChannelId = '1346007514193330178'; // welcome-channel
-                const crewChannelId = '1372108730786910258'; // welcome-crew embed channel
+                const crewChannelId = FALLBACK_CREW_CHANNEL_ID; // welcome-crew embed channel (still hardcoded)
 
                 const welcomeChannel = interaction.guild.channels.cache.get(welcomeChannelId) || await interaction.guild.channels.fetch(welcomeChannelId).catch(() => null);
                 const crewChannel = interaction.guild.channels.cache.get(crewChannelId) || await interaction.guild.channels.fetch(crewChannelId).catch(() => null);
@@ -571,8 +611,7 @@ async function handleModal(interaction) {
 
         // Log successful onboarding to moderation/log channel
         try {
-            const LOG_CHANNEL_ID = '1425705491274928138';
-            const logChannel = interaction.guild.channels.cache.get(LOG_CHANNEL_ID) || await interaction.guild.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
+            const logChannel = interaction.guild.channels.cache.get(logChannelId) || await interaction.guild.channels.fetch(logChannelId).catch(() => null);
             if (logChannel && logChannel.send) {
                 const state = meta || {};
                 const getLabel = (v) => (v && (v.label || v.name || v.key)) || '—';
@@ -627,9 +666,9 @@ module.exports = {
     cleanupExpiredSessions,
     EXPIRATION_MS,
     
-    // Configuration exports (for commands that need onboarding config)
-    ONBOARDING_CATEGORIES,
-    GATE_ROLE_ID,
+    // Configuration exports (legacy fallbacks; guild-specific config is DB-backed)
+    ONBOARDING_CATEGORIES: DEFAULT_ONBOARDING_CATEGORIES,
+    GATE_ROLE_ID: DEFAULT_GATE_ROLE_ID,
     getCategoryByName,
 
     // Rate limits for onboarding interactions

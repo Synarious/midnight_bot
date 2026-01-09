@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder, PermissionsBitField } = require('discord.js');
 const db = require('../../data/database.js');
+const activityTracker = require('../../data/activityTracker.js');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -63,6 +64,15 @@ module.exports = {
       await interaction.deferReply();
 
       await guild.members.ban(userToBan.id, { reason: auditReason, days: 0 });
+
+      // Track moderation action for dashboard
+      await activityTracker.logModAction(guild.id, 'ban', {
+        targetUserId: userToBan.id,
+        targetUsername: userToBan.tag,
+        moderatorId: member.id,
+        moderatorUsername: member.user.tag,
+        reason: auditReason
+      });
 
       await interaction.editReply({
         content: `Successfully banned **${userToBan.tag}** (${userToBan.id}). Reason: ${displayReason}`,

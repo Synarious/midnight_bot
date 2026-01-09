@@ -43,6 +43,10 @@ const HealthCheck = require('./utils/healthcheck.js');
 const token = process.env.DISCORD_TOKEN;
 const database = require('./data/database.js');
 const commandHandler = require('./events/commandHandler.js');
+const activityTracker = require('./data/activityTracker.js');
+const levelingSystem = require('./data/levelingSystem.js');
+const voiceActivityTracker = require('./data/voiceActivityTracker.js');
+const partitionManager = require('./data/partitionManager.js');
 
 
 // --- Client Initialization ---
@@ -156,6 +160,21 @@ client.once(Events.ClientReady, async c => {
         console.error('  └─ [ERROR] Failed to initialize Member Cache Manager:', e);
     }
     
+    // Start activity tracking workers
+    try {
+        voiceActivityTracker.startWorkers();
+        console.log('  └─ [Module] Initialized: Voice Activity Tracker');
+    } catch (e) {
+        console.error('  └─ [ERROR] Failed to initialize Voice Activity Tracker:', e);
+    }
+    
+    try {
+        partitionManager.startWorker();
+        console.log('  └─ [Module] Initialized: Partition Manager');
+    } catch (e) {
+        console.error('  └─ [ERROR] Failed to initialize Partition Manager:', e);
+    }
+    
     // Start healthcheck monitoring
     try {
     // Ping external healthcheck every 5 minutes (300 seconds)
@@ -186,11 +205,17 @@ client.on(Events.GuildMemberAdd, member => {
     muteHandler.handleMemberJoin(member);
     inviteTracker.handleMemberJoin(member);
     memberCache.addMember(member);
+    // Track join for dashboard
+    activityTracker.logEvent(member.guild.id, 'join', member.id);
+    activityTracker.trackMemberJoin(member.guild.id, member.id, member.user.username);
 });
 
 client.on(Events.GuildMemberRemove, member => {
     inviteTracker.handleMemberLeave(member);
     memberCache.removeMember(member);
+    // Track leave for dashboard
+    activityTracker.logEvent(member.guild.id, 'leave', member.id);
+    activityTracker.trackMemberLeave(member.guild.id, member.id);
 });
 
 client.on(Events.GuildMemberUpdate, (oldMember, newMember) => {
@@ -217,6 +242,16 @@ client.on(Events.GuildDelete, guild => {
 
 client.on('messageCreate', (message) => {
     commandHandler.execute(client, message);
+    // Track message for dashboard (only non-bot messages)
+    if (!message.author.bot && message.guild) {
+        activityTracker.logEvent(message.guild.id, 'message', message.author.id, message.channel.id);
+        // Award XP for leveling system
+        levelingSystem.awardMessageXP(message.guild.id, message.author.id, message.channel.id);
+    }
+});
+
+client.on(Events.VoiceStateUpdate, (oldState, newState) => {
+    voiceActivityTracker.handleVoiceStateUpdate(oldState, newState);
 });
 
 console.log('[MODULES] Finished registering custom modules.');

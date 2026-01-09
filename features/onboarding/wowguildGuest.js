@@ -1,69 +1,47 @@
 const { ActionRowBuilder, EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
+const { getWowGuestSettings } = require('../../data/automodSettings');
 
-// ==================== ONBOARDING CONFIGURATION ====================
-// Gate role that is removed when user completes captcha
-const GATE_ROLE_ID = '1442686627481911356';
-const GUEST_ROLE_ID = '1130301984935780483';
+// ==================== DEFAULT CONFIGURATION ====================
+const DEFAULT_GATE_ROLE_ID = '1442686627481911356';
+const DEFAULT_GUEST_ROLE_ID = '1130301984935780483';
+const DEFAULT_WELCOME_CHANNEL_ID = '1445186684810563737';
+const DEFAULT_LOG_CHANNEL_ID = '1130635039466586132';
+
 const VERIFICATION_MODAL_ID = 'wow_guest_char_modal';
 
-// Channel IDs for welcome messages
-const WOW_WELCOME_CHANNEL_ID = '1445186684810563737';
-const WOW_LOG_CHANNEL_ID = '1130635039466586132';
+// Default welcome messages
+const DEFAULT_WELCOME_MESSAGES = [
+    `Welcome {user}! The Dawnbound gains a new champion — may your loot be plentiful.`,
+    `Hey {user}, fresh from Azeroth — may your quests be epic and your crits be high.`,
+    `{user} has arrived at the guild hall — ready to queue for a dungeon?`,
+    `Nice to see you {user}! May your mounts be swift and your transmog legendary.`,
+    `Welcome {user}! Make yourself at the hearth — share your main and preferred spec when you can.`,
+    `Hey {user}, welcome aboard — hope you're ready for Mythic+ dungeons and world bosses.`,
+    `Yo {user}! Your avatar screams veteran — show us your best dungeon runs.`,
+    `{user} — welcome! No need to introduce yourself, but let us know your class and role if you like.`,
+    `Hi {user}! That character name fits right in — may your runs be smooth.`,
+    `Welcome {user}! Quiet entry? Perfect — stealthy rogues and patient healers welcome.`,
+    `Hey {user}, glad you joined — bring potions and come dungeon night ready.`,
+    `Welcome {user}! If your name had a battlecry, we'd hear it across Azeroth.`,
+    `Hi {user}! Love the look — hope the Dawnbound feels like a second home.`,
+    `Welcome {user}! Your arrival strengthens our ranks — time for a dungeon push.`,
+    `{user}, welcome! Whether you PvP, run dungeons, or collect mounts, you'll find allies here.`,
+    `Hey {user}, that avatar says "seasoned adventurer" — good to have you with us.`,
+    `Welcome {user}! No intro required, but drop your main and favourite dungeon if you want.`,
+    `Nice to meet you {user}! You look ready for heroic nights — enjoy the guild.`,
+    `Welcome {user}! If you want dungeon or gearing recs, ask any officer later.`,
+    `Hey {user}, subtle flex: great transmog. Welcome to the guild hall.`,
+    `Welcome {user}! Your name suggests a true looter — and we approve.`,
+    `Hi {user}! We appreciate a tasteful mount — swing by the tavern and say hi.`,
+    `Welcome {user}! Pop in when you feel like it — the guild hall's always open.`,
+    `Hey {user}, love the energy — ready for the next dungeon night?`
+];
 
-// ==================== HELPER FUNCTIONS ====================
-
-function formatGuildInfo(interaction) {
-    try {
-        const g = interaction?.guild;
-        if (!g) return '(no guild)';
-        return `${g.name} (ID: ${g.id})`;
-    } catch (e) {
-        return '(unknown guild)';
-    }
-}
-
-// Optional: restrict this feature to a set of guild IDs (comma-separated in env)
-// If empty, the feature is enabled in all guilds.
-const ALLOWED_GUILD_IDS = (process.env.WOW_ONBOARDING_GUILDS || '')
-    .split(',')
-    .map(s => s.trim())
-    .filter(Boolean);
-
-function isGuildAllowed(interaction) {
-    if (!interaction || !interaction.guild) return false;
-    if (ALLOWED_GUILD_IDS.length === 0) return true;
-    return ALLOWED_GUILD_IDS.includes(interaction.guild.id);
-}
-
-function getRandomWelcomeMessage(user) {
+function getRandomWelcomeMessage(user, customMessages = null) {
     const userMention = `<@${user.id}>`;
-    const templates = [
-        `Welcome ${userMention}! The Dawnbound gains a new champion — may your loot be plentiful.`,
-        `Hey ${userMention}, fresh from Azeroth — may your quests be epic and your crits be high.`,
-        `${userMention} has arrived at the guild hall — ready to queue for a dungeon?`,
-        `Nice to see you ${userMention}! May your mounts be swift and your transmog legendary.`,
-        `Welcome ${userMention}! Make yourself at the hearth — share your main and preferred spec when you can.`,
-        `Hey ${userMention}, welcome aboard — hope you're ready for Mythic+ dungeons and world bosses.`,
-        `Yo ${userMention}! Your avatar screams veteran — show us your best dungeon runs.`,
-        `${userMention} — welcome! No need to introduce yourself, but let us know your class and role if you like.`,
-        `Hi ${userMention}! That character name fits right in — may your runs be smooth.`,
-        `Welcome ${userMention}! Quiet entry? Perfect — stealthy rogues and patient healers welcome.`,
-        `Hey ${userMention}, glad you joined — bring potions and come dungeon night ready.`,
-        `Welcome ${userMention}! If your name had a battlecry, we'd hear it across Azeroth.`,
-        `Hi ${userMention}! Love the look — hope the Dawnbound feels like a second home.`,
-        `Welcome ${userMention}! Your arrival strengthens our ranks — time for a dungeon push.`,
-        `${userMention}, welcome! Whether you PvP, run dungeons, or collect mounts, you'll find allies here.`,
-        `Hey ${userMention}, that avatar says "seasoned adventurer" — good to have you with us.`,
-        `Welcome ${userMention}! No intro required, but drop your main and favourite dungeon if you want.`,
-        `Nice to meet you ${userMention}! You look ready for heroic nights — enjoy the guild.`,
-        `Welcome ${userMention}! If you want dungeon or gearing recs, ask any officer later.`,
-        `Hey ${userMention}, subtle flex: great transmog. Welcome to the guild hall.`,
-        `Welcome ${userMention}! Your name suggests a true looter — and we approve.`,
-        `Hi ${userMention}! We appreciate a tasteful mount — swing by the tavern and say hi.`,
-        `Welcome ${userMention}! Pop in when you feel like it — the guild hall's always open.`,
-        `Hey ${userMention}, love the energy — ready for the next dungeon night?`
-    ];
-    return templates[Math.floor(Math.random() * templates.length)];
+    const templates = customMessages && customMessages.length > 0 ? customMessages : DEFAULT_WELCOME_MESSAGES;
+    const template = templates[Math.floor(Math.random() * templates.length)];
+    return template.replace(/{user}/g, userMention);
 }
 
 // ==================== INTERACTION HANDLERS ====================
@@ -75,9 +53,13 @@ function getRandomWelcomeMessage(user) {
  */
 async function handleButton(interaction) {
     if (!interaction.isButton() || interaction.customId !== 'wow_guest_finish') return false;
-    if (!isGuildAllowed(interaction)) return false;
+    if (!interaction.guild) return false;
 
     try {
+        // Check if this guild has WoW guest onboarding enabled
+        const settings = await getWowGuestSettings(interaction.guild.id);
+        if (!settings || !settings.enabled) return false;
+
         const modal = new ModalBuilder()
             .setCustomId(VERIFICATION_MODAL_ID)
             .setTitle('WoW Character Name');
@@ -111,9 +93,13 @@ async function handleButton(interaction) {
  */
 async function handleModal(interaction) {
     if (!interaction.isModalSubmit() || interaction.customId !== VERIFICATION_MODAL_ID) return false;
-    if (!isGuildAllowed(interaction)) return false;
+    if (!interaction.guild) return false;
 
     try {
+        // Get guild settings from database
+        const settings = await getWowGuestSettings(interaction.guild.id);
+        if (!settings || !settings.enabled) return false;
+
         const characterRaw = (interaction.fields.getTextInputValue('characterName') || '').trim();
 
         if (!characterRaw) {
@@ -126,7 +112,7 @@ async function handleModal(interaction) {
         const member = interaction.member ?? await interaction.guild.members.fetch(interaction.user.id);
         
         // Remove gate role
-        const gateRoleId = GATE_ROLE_ID;
+        const gateRoleId = settings.gate_role_id || DEFAULT_GATE_ROLE_ID;
         if (gateRoleId && member.roles.cache.has(gateRoleId)) {
             try {
                 await member.roles.remove(gateRoleId);
@@ -145,27 +131,29 @@ async function handleModal(interaction) {
         }
 
         // Add Guest role
-        if (GUEST_ROLE_ID && !member.roles.cache.has(GUEST_ROLE_ID)) {
+        const guestRoleId = settings.guest_role_id || DEFAULT_GUEST_ROLE_ID;
+        if (guestRoleId && !member.roles.cache.has(guestRoleId)) {
             try {
-                await member.roles.add(GUEST_ROLE_ID);
-                console.log(`[wowGuildGuest] Added Guest role ${GUEST_ROLE_ID} to ${interaction.user.tag}`);
+                await member.roles.add(guestRoleId);
+                console.log(`[wowGuildGuest] Added Guest role ${guestRoleId} to ${interaction.user.tag}`);
             } catch (roleErr) {
                 console.error('[wowGuildGuest] Failed to add Guest role:', roleErr);
             }
         }
 
         // Send welcome message
-        const welcomeChannelId = WOW_WELCOME_CHANNEL_ID;
+        const welcomeChannelId = settings.welcome_channel_id || DEFAULT_WELCOME_CHANNEL_ID;
         if (welcomeChannelId) {
             const welcomeChannel = interaction.guild.channels.cache.get(welcomeChannelId);
             if (welcomeChannel) {
-                const welcomeMessage = getRandomWelcomeMessage(member.user);
+                const customMessages = parseJsonArray(settings.welcome_messages);
+                const welcomeMessage = getRandomWelcomeMessage(member.user, customMessages);
                 await welcomeChannel.send(welcomeMessage);
             }
         }
 
         // Log to WoW log channel
-        const logChannelId = WOW_LOG_CHANNEL_ID;
+        const logChannelId = settings.log_channel_id || DEFAULT_LOG_CHANNEL_ID;
         if (logChannelId) {
             const logChannel = interaction.guild.channels.cache.get(logChannelId);
             if (logChannel) {
@@ -201,12 +189,23 @@ async function handleModal(interaction) {
     }
 }
 
+function parseJsonArray(value) {
+    if (!value) return [];
+    if (Array.isArray(value)) return value;
+    try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [];
+    }
+}
+
 // ==================== EXPORTS ====================
 
 module.exports = {
     handleButton,
     handleModal,
-    GATE_ROLE_ID,
+    GATE_ROLE_ID: DEFAULT_GATE_ROLE_ID,
     rateLimits: {
         button: 2000,
         modal: 5000,

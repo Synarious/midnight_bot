@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const db = require('../../data/database.js');
+const activityTracker = require('../../data/activityTracker.js');
 const { getGuildSettings, addMutedUser, getActiveMute } = db;
 
 /**
@@ -156,6 +157,16 @@ module.exports = {
                 actionedBy: executor.id,
                 length: durationStr,
                 expires: expires,
+            });
+
+            // Track moderation action for dashboard
+            await activityTracker.logModAction(interaction.guild.id, 'mute', {
+                targetUserId: target.id,
+                targetUsername: target.user.tag,
+                moderatorId: executor.id,
+                moderatorUsername: executor.user.tag,
+                reason: reason,
+                durationMinutes: Math.floor(durationMs / 60000)
             });
 
             // --- Confirmation ---

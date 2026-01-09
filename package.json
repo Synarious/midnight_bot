@@ -5,8 +5,6 @@
   "main": "index.js",
   "scripts": {
     "deploy": "node deploy-commands.js",
-    "check-runtime": "node scripts/check_runtime.js",
-    "prestart": "npm run check-runtime",
     "start": "node index.js",
     "migrate": "node migrate.js"
   },
@@ -31,11 +29,12 @@
     "alexflipnote.js": "^3.1.2",
     "axios": "^1.12.0",
     "date-fns": "^4.1.0",
-  "lru-cache": "^10.1.1",
     "discord-api-types": "^0.38.21",
     "discord.js": "^14.20.0",
     "dotenv": "^16.5.0",
     "fuse.js": "^7.1.0",
+    "ioredis": "^5.9.1",
+    "lru-cache": "^10.1.1",
     "node-cron": "^3.0.3",
     "openai": "^5.6.0",
     "pg": "^8.16.3"

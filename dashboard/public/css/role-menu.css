@@ -1,0 +1,107 @@
+
+/* Role Menu Styles */
+.role-menu-container {
+    display: flex;
+    flex-col: column;
+    gap: 2rem;
+}
+
+.role-menu-category {
+    background-color: var(--color-gray-800);
+    border: 1px solid var(--color-gray-700);
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+
+.role-menu-header {
+    padding: 1rem 1.5rem;
+    background-color: rgba(0, 0, 0, 0.2);
+    border-bottom: 1px solid var(--color-gray-700);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.role-menu-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: white;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.role-menu-description {
+    font-size: 0.875rem;
+    color: var(--color-gray-400);
+    margin-top: 0.25rem;
+}
+
+.role-menu-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1rem;
+    padding: 1.5rem;
+}
+
+.role-card {
+    background-color: var(--color-gray-700);
+    border: 1px solid var(--color-gray-600);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    transition: all 0.2s;
+}
+
+.role-card:hover {
+    border-color: var(--color-indigo-500);
+    transform: translateY(-2px);
+}
+
+.role-card-emoji {
+    font-size: 1.5rem;
+    width: 3rem;
+    height: 3rem;
+    background-color: var(--color-gray-800);
+    border-radius: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.role-card-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.role-card-name {
+    font-weight: 600;
+    color: white;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.role-card-id {
+    font-size: 0.75rem;
+    color: var(--color-gray-400);
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.role-card-actions {
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.role-card:hover .role-card-actions {
+    opacity: 1;
+}
+
+.role-menu-empty {
+    padding: 2rem;
+    text-align: center;
+    color: var(--color-gray-500);
+    font-style: italic;
+}
