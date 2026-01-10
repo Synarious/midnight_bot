@@ -70,7 +70,7 @@ client.slashCommands = new Collection(); // Slash commands
 console.log('[LOADER] Initializing loaders...');
 
 // Command Loader
-commandHandler.loadCommands(client);
+const commandLoadStats = commandHandler.loadCommands(client);
 
 // Event Loader
 function getAllEventFiles(dirPath, arrayOfFiles = []) {
@@ -132,6 +132,14 @@ client.once(Events.ClientReady, async c => {
         console.log('  └─ [Database] Guild settings synchronized');
     } catch (e) {
         console.error('  └─ [ERROR] Failed to sync guild settings:', e);
+    }
+
+    // Sync command registry for dashboard command toggles
+    try {
+        await database.syncCommandRegistryFromClient(c);
+        console.log('  └─ [Database] Command registry synchronized');
+    } catch (e) {
+        console.error('  └─ [ERROR] Failed to sync command registry:', e);
     }
 
     try {
@@ -202,20 +210,53 @@ client.once(Events.ClientReady, async c => {
 });
 
 client.on(Events.GuildMemberAdd, member => {
-    muteHandler.handleMemberJoin(member);
-    inviteTracker.handleMemberJoin(member);
-    memberCache.addMember(member);
-    // Track join for dashboard
-    activityTracker.logEvent(member.guild.id, 'join', member.id);
-    activityTracker.trackMemberJoin(member.guild.id, member.id, member.user.username);
+    // Global kill-switch per guild
+    database.isBotEnabled(member.guild.id).then((enabled) => {
+        if (!enabled) return;
+
+        // Auto Role module (optional)
+        database.getGuildSettings(member.guild.id)
+            .then((settings) => {
+                if (settings?.auto_role_enabled === true && settings?.auto_role_id) {
+                    const roleId = String(settings.auto_role_id);
+                    const role = member.guild.roles.cache.get(roleId);
+                    if (role) {
+                        member.roles.add(role).catch(() => {});
+                    }
+                }
+            })
+            .catch(() => {});
+
+        muteHandler.handleMemberJoin(member);
+        inviteTracker.handleMemberJoin(member);
+        memberCache.addMember(member);
+        // Track join for dashboard
+        activityTracker.logEvent(member.guild.id, 'join', member.id);
+        activityTracker.trackMemberJoin(member.guild.id, member.id, member.user.username);
+    }).catch(() => {
+        // fail-open
+        muteHandler.handleMemberJoin(member);
+        inviteTracker.handleMemberJoin(member);
+        memberCache.addMember(member);
+        activityTracker.logEvent(member.guild.id, 'join', member.id);
+        activityTracker.trackMemberJoin(member.guild.id, member.id, member.user.username);
+    });
 });
 
 client.on(Events.GuildMemberRemove, member => {
-    inviteTracker.handleMemberLeave(member);
-    memberCache.removeMember(member);
-    // Track leave for dashboard
-    activityTracker.logEvent(member.guild.id, 'leave', member.id);
-    activityTracker.trackMemberLeave(member.guild.id, member.id);
+    database.isBotEnabled(member.guild.id).then((enabled) => {
+        if (!enabled) return;
+        inviteTracker.handleMemberLeave(member);
+        memberCache.removeMember(member);
+        // Track leave for dashboard
+        activityTracker.logEvent(member.guild.id, 'leave', member.id);
+        activityTracker.trackMemberLeave(member.guild.id, member.id);
+    }).catch(() => {
+        inviteTracker.handleMemberLeave(member);
+        memberCache.removeMember(member);
+        activityTracker.logEvent(member.guild.id, 'leave', member.id);
+        activityTracker.trackMemberLeave(member.guild.id, member.id);
+    });
 });
 
 client.on(Events.GuildMemberUpdate, (oldMember, newMember) => {
@@ -224,7 +265,12 @@ client.on(Events.GuildMemberUpdate, (oldMember, newMember) => {
 });
 
 client.on(Events.InviteCreate, invite => {
-    inviteTracker.handleInviteCreate(invite);
+    database.isBotEnabled(invite.guild?.id).then((enabled) => {
+        if (!enabled) return;
+        inviteTracker.handleInviteCreate(invite);
+    }).catch(() => {
+        inviteTracker.handleInviteCreate(invite);
+    });
 });
 
 client.on(Events.GuildCreate, guild => {
@@ -244,14 +290,30 @@ client.on('messageCreate', (message) => {
     commandHandler.execute(client, message);
     // Track message for dashboard (only non-bot messages)
     if (!message.author.bot && message.guild) {
-        activityTracker.logEvent(message.guild.id, 'message', message.author.id, message.channel.id);
-        // Award XP for leveling system
-        levelingSystem.awardMessageXP(message.guild.id, message.author.id, message.channel.id);
+        database.isBotEnabled(message.guild.id).then((enabled) => {
+            if (!enabled) return;
+            activityTracker.logEvent(message.guild.id, 'message', message.author.id, message.channel.id);
+            // Award XP for leveling system
+            levelingSystem.awardMessageXP(message.guild.id, message.author.id, message.channel.id);
+        }).catch(() => {
+            activityTracker.logEvent(message.guild.id, 'message', message.author.id, message.channel.id);
+            levelingSystem.awardMessageXP(message.guild.id, message.author.id, message.channel.id);
+        });
     }
 });
 
 client.on(Events.VoiceStateUpdate, (oldState, newState) => {
-    voiceActivityTracker.handleVoiceStateUpdate(oldState, newState);
+    const guildId = newState.guild?.id || oldState.guild?.id;
+    if (!guildId) {
+        voiceActivityTracker.handleVoiceStateUpdate(oldState, newState);
+        return;
+    }
+    database.isBotEnabled(guildId).then((enabled) => {
+        if (!enabled) return;
+        voiceActivityTracker.handleVoiceStateUpdate(oldState, newState);
+    }).catch(() => {
+        voiceActivityTracker.handleVoiceStateUpdate(oldState, newState);
+    });
 });
 
 console.log('[MODULES] Finished registering custom modules.');

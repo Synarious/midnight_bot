@@ -12,6 +12,11 @@ const FALLBACK_WELCOME_CHANNEL_ID = '1346007514193330178';
 const FALLBACK_CREW_CHANNEL_ID = '1372108730786910258';
 const DEFAULT_GATE_ROLE_ID = '1425702277410455654';
 
+// Legacy fallback categories.
+// This project is now DB-configurable via the dashboard, so default to empty.
+// (Leaving this undefined breaks bot startup and slash command handling.)
+const DEFAULT_ONBOARDING_CATEGORIES = [];
+
 function safeCategoryIdFromName(name) {
     return String(name || '')
         .toLowerCase()

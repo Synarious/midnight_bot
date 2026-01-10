@@ -1,4 +1,32 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const db = require('../../data/database');
+
+let schemaEnsured = false;
+
+async function ensureDeletedMessagesSchema() {
+  if (schemaEnsured) return;
+  schemaEnsured = true;
+
+  await db.query(
+    `
+    CREATE TABLE IF NOT EXISTS deleted_messages (
+      id BIGSERIAL PRIMARY KEY,
+      guild_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      content TEXT,
+      deleted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `,
+    [],
+    { context: 'cmd:deleted:ensureSchema' }
+  );
+
+  await db.query(
+    'CREATE INDEX IF NOT EXISTS idx_deleted_messages_guild_user_time ON deleted_messages (guild_id, user_id, deleted_at DESC)',
+    [],
+    { context: 'cmd:deleted:ensureSchema:index' }
+  );
+}
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -12,20 +40,25 @@ module.exports = {
 
   async execute(interaction) {
     const targetUser = interaction.options.getUser('user') || interaction.user;
-    const modMsgDb = interaction.client.mod_msg_db;
 
-    if (!modMsgDb) {
-      return interaction.reply({ content: 'Database is not initialized.', ephemeral: true });
-    }
+    await ensureDeletedMessagesSchema();
 
     // Query deleted messages for this guild and user, most recent first, limit 10
-    const rows = modMsgDb.prepare(`
-      SELECT content, timestamp 
-      FROM deleted_messages 
-      WHERE guild_id = ? AND user_id = ? 
-      ORDER BY timestamp DESC 
+    const result = await db.query(
+      `
+      SELECT
+        content,
+        deleted_at
+      FROM deleted_messages
+      WHERE guild_id = $1 AND user_id = $2
+      ORDER BY deleted_at DESC
       LIMIT 10
-    `).all(interaction.guild.id, targetUser.id);
+    `,
+      [interaction.guild.id, targetUser.id],
+      { rateKey: interaction.guild.id, context: 'cmd:deleted' }
+    );
+
+    const rows = result?.rows || [];
 
     if (!rows.length) {
       return interaction.reply({ content: `No deleted messages found for ${targetUser.tag}.`, ephemeral: true });
@@ -33,8 +66,9 @@ module.exports = {
 
     // Build description with message previews and timestamps
     const description = rows.map((row, i) => {
-      const preview = row.content.length > 256 ? row.content.slice(0, 253) + '...' : row.content;
-      const time = new Date(row.timestamp).toLocaleString();
+      const content = row.content || '';
+      const preview = content.length > 256 ? content.slice(0, 253) + '...' : content;
+      const time = row.deleted_at ? new Date(row.deleted_at).toLocaleString() : '—';
       return `**${i + 1}.** [${time}]\n${preview}`;
     }).join('\n\n');
 

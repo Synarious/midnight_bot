@@ -1,4 +1,5 @@
 const { EmbedBuilder, StringSelectMenuBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } = require('discord.js');
+const db = require('../../data/database.js');
 
 // ==================== CONFIGURATION ====================
 // Easy to modify - add or remove categories and roles here
@@ -156,6 +157,22 @@ function createSelectMenus(member = null) {
 async function handleButton(interaction) {
     if (!interaction.isButton() || !interaction.customId.startsWith('role_menu_')) return false;
 
+	// Allow disabling Role Menus per guild
+	try {
+		const guildId = interaction.guild?.id;
+		if (guildId) {
+			const enabled = await db.isRoleMenusEnabled(guildId);
+			if (!enabled) {
+				return interaction.reply({
+					content: '⚠️ Role Menus are disabled on this server.',
+					ephemeral: true
+				});
+			}
+		}
+	} catch (e) {
+		// fail-open
+	}
+
     // Check if user is muted
 	if (isMuted(interaction.member)) {
 		return interaction.reply({
@@ -202,6 +219,22 @@ async function handleButton(interaction) {
  */
 async function handleSelect(interaction) {
     if (!interaction.isStringSelectMenu() || !interaction.customId.startsWith('role_menu_')) return false;
+
+	// Allow disabling Role Menus per guild
+	try {
+		const guildId = interaction.guild?.id;
+		if (guildId) {
+			const enabled = await db.isRoleMenusEnabled(guildId);
+			if (!enabled) {
+				return interaction.reply({
+					content: '⚠️ Role Menus are disabled on this server.',
+					ephemeral: true
+				});
+			}
+		}
+	} catch (e) {
+		// fail-open
+	}
 
     // Check if user is muted
 	if (isMuted(interaction.member)) {

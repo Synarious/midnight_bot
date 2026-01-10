@@ -1,4 +1,5 @@
 const { SlashCommandBuilder, ChannelType, PermissionFlagsBits } = require('discord.js');
+const { updateGuildSetting } = require('../../data/database.js');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -28,6 +29,9 @@ module.exports = {
       'ch_editedMessages',
       'ch_automod_AI',
       'ch_voiceLog',
+      'ch_inviteLog',
+      'ch_permanentInvites',
+      'ch_memberJoin',
     ];
 
     const filtered = configKeys.filter(k => k.startsWith(focusedValue));
@@ -35,7 +39,6 @@ module.exports = {
   },
 
   async execute(interaction) {
-    const db = interaction.client.db;
     const configKey = interaction.options.getString('config_key');
     const channel = interaction.options.getChannel('channel');
     const member = interaction.member;
@@ -64,6 +67,9 @@ module.exports = {
       'ch_editedMessages',
       'ch_automod_AI',
       'ch_voiceLog',
+      'ch_inviteLog',
+      'ch_permanentInvites',
+      'ch_memberJoin',
     ]);
 
     if (!validKeys.has(configKey)) {
@@ -76,8 +82,13 @@ module.exports = {
       return interaction.reply({ content: '❌ You must select a channel from this server.', ephemeral: true });
     }
 
-    db.prepare(`INSERT OR IGNORE INTO guild_settings (guild_id) VALUES (?)`).run(guildId);
-    db.prepare(`UPDATE guild_settings SET ${configKey} = ? WHERE guild_id = ?`).run(channel.id, guildId);
+    const updated = await updateGuildSetting(guildId, configKey, channel.id);
+    if (!updated) {
+      return interaction.reply({
+        content: '❌ Failed to update the database. Please try again later.',
+        ephemeral: true,
+      });
+    }
 
     return interaction.reply({
       content: `✅ Set \`${configKey}\` to <#${channel.id}>.`,

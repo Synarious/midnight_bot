@@ -167,9 +167,10 @@ async function unmuteUser(member, muteRecord) {
 async function logRemute(member, muteRecord, settings) {
     try {
         const { EmbedBuilder } = require('discord.js');
+        const { resolveEnabledLogChannelId } = require('../../data/database.js');
         
         // Use guild-specific action log from DB
-        const logChannelId = settings.ch_actionlog ?? settings.ch_actionLog;
+        const logChannelId = resolveEnabledLogChannelId(settings, 'ch_actionlog');
         if (!logChannelId) {
             console.log(`[MuteHandler] No action log configured for guild ${member.guild.id}. Cannot log remute for ${member.id}`);
             return;

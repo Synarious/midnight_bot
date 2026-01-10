@@ -31,6 +31,223 @@ function escapeHtml(text) {
     return String(text).replace(/[&<>"']/g, m => map[m]);
 }
 
+function looksLikeSnowflake(text) {
+    return /^[0-9]{16,20}$/.test(String(text || '').trim());
+}
+
+function formatChannelDisplayName(channel) {
+    if (!channel?.name) return '';
+    return `#${channel.name}`;
+}
+
+function resolveChannelNameById(channelId) {
+    const id = String(channelId || '').trim();
+    if (!id) return '';
+    const found = guildChannels.find(c => String(c.id) === id);
+    return found ? formatChannelDisplayName(found) : id;
+}
+
+function resolveChannelIdFromUserInput(inputText) {
+    const raw = String(inputText || '').trim();
+    if (!raw) return '';
+
+    // Accept <#123> mentions
+    const mentionMatch = raw.match(/^<#[\s]*([0-9]{16,20})[\s]*>$/);
+    if (mentionMatch) return mentionMatch[1];
+
+    // Accept raw snowflake
+    if (looksLikeSnowflake(raw)) return raw;
+
+    // Accept #channel-name (best effort)
+    const maybeName = raw.startsWith('#') ? raw.slice(1).trim() : raw;
+    if (!maybeName) return '';
+
+    const matches = guildChannels.filter(c => String(c.name || '').toLowerCase() === maybeName.toLowerCase());
+    if (matches.length === 1) return matches[0].id;
+    if (matches.length > 1) {
+        showToast(`Multiple channels named "${maybeName}". Paste the channel ID to disambiguate.`, 'error');
+        return '';
+    }
+
+    return '';
+}
+
+function attachPrettyChannelDropdown(inputEl, { onPick } = {}) {
+    if (!inputEl || inputEl.dataset.prettyDropdownAttached === '1') return;
+    inputEl.dataset.prettyDropdownAttached = '1';
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'pretty-select';
+    inputEl.parentNode.insertBefore(wrapper, inputEl);
+    wrapper.appendChild(inputEl);
+
+    inputEl.classList.add('pretty-select-input');
+
+    const menu = document.createElement('div');
+    menu.className = 'pretty-select-menu hidden';
+    wrapper.appendChild(menu);
+
+    const closeMenu = () => {
+        menu.classList.add('hidden');
+    };
+
+    const openMenu = () => {
+        menu.classList.remove('hidden');
+    };
+
+    const renderMenu = () => {
+        const query = String(inputEl.value || '').trim().toLowerCase();
+        const channels = [...guildChannels];
+
+        // Simple filtering: name contains query OR user pasted an ID/mention.
+        let results = channels;
+        if (query) {
+            const resolvedId = resolveChannelIdFromUserInput(inputEl.value);
+            if (resolvedId) {
+                results = channels.filter(c => String(c.id) === String(resolvedId));
+            } else {
+                const q = query.startsWith('#') ? query.slice(1) : query;
+                results = channels.filter(c => String(c.name || '').toLowerCase().includes(q));
+            }
+        }
+
+        results = results
+            .sort((a, b) => {
+                if (a.type !== b.type) return a.type - b.type;
+                return String(a.name || '').localeCompare(String(b.name || ''));
+            })
+            .slice(0, 30);
+
+        menu.innerHTML = '';
+
+        if (results.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'pretty-select-empty';
+            empty.textContent = 'No matching channels';
+            menu.appendChild(empty);
+            return;
+        }
+
+        for (const ch of results) {
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'pretty-select-item';
+            item.dataset.id = ch.id;
+
+            const left = document.createElement('div');
+            left.className = 'pretty-select-item-title';
+            left.textContent = formatChannelDisplayName(ch);
+
+            const right = document.createElement('div');
+            right.className = 'pretty-select-item-meta';
+            right.textContent = getChannelTypeName(ch.type);
+
+            item.appendChild(left);
+            item.appendChild(right);
+
+            item.addEventListener('mousedown', (e) => {
+                // Prevent blur firing before click
+                e.preventDefault();
+            });
+
+            item.addEventListener('click', () => {
+                if (typeof onPick === 'function') {
+                    onPick(ch);
+                } else {
+                    inputEl.value = formatChannelDisplayName(ch);
+                }
+                closeMenu();
+            });
+
+            menu.appendChild(item);
+        }
+    };
+
+    inputEl.addEventListener('focus', () => {
+        renderMenu();
+        openMenu();
+    });
+
+    inputEl.addEventListener('input', () => {
+        renderMenu();
+        openMenu();
+    });
+
+    inputEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeMenu();
+            return;
+        }
+        if (e.key === 'Enter') {
+            // Let callers handle commit on blur/change; keep dropdown from submitting forms inadvertently.
+            if (menu && !menu.classList.contains('hidden')) {
+                e.preventDefault();
+            }
+        }
+    });
+
+    inputEl.addEventListener('blur', () => {
+        // Delay so clicks on menu register
+        setTimeout(() => closeMenu(), 150);
+    });
+}
+
+function syncPrettyChannelInputFromHidden(hiddenInputEl) {
+    if (!hiddenInputEl?._prettyDisplayInput) return;
+    const id = String(hiddenInputEl.value || '').trim();
+    hiddenInputEl._prettyDisplayInput.value = resolveChannelNameById(id);
+    hiddenInputEl._prettyDisplayInput.dataset.channelId = id;
+}
+
+function upgradeSingleChannelIdInput(hiddenInputEl) {
+    if (!hiddenInputEl || hiddenInputEl.dataset.prettyUpgraded === '1') return;
+    hiddenInputEl.dataset.prettyUpgraded = '1';
+
+    // Preserve original ID storage for form logic
+    const originalType = hiddenInputEl.type;
+    hiddenInputEl.type = 'hidden';
+    hiddenInputEl.dataset.originalType = originalType;
+
+    const displayInput = document.createElement('input');
+    displayInput.type = 'text';
+    displayInput.className = (hiddenInputEl.className || '').replace('font-mono', '').trim() || 'form-input';
+    displayInput.placeholder = hiddenInputEl.placeholder || 'Search channel…';
+
+    hiddenInputEl.parentNode.insertBefore(displayInput, hiddenInputEl);
+    hiddenInputEl._prettyDisplayInput = displayInput;
+
+    const commitTypedValue = () => {
+        const typed = displayInput.value.trim();
+        if (!typed) {
+            hiddenInputEl.value = '';
+            syncPrettyChannelInputFromHidden(hiddenInputEl);
+            return;
+        }
+
+        const resolved = resolveChannelIdFromUserInput(typed);
+        if (!resolved) {
+            showToast('Select a valid channel from the list (or paste its ID)', 'error');
+            syncPrettyChannelInputFromHidden(hiddenInputEl);
+            return;
+        }
+
+        hiddenInputEl.value = resolved;
+        syncPrettyChannelInputFromHidden(hiddenInputEl);
+    };
+
+    attachPrettyChannelDropdown(displayInput, {
+        onPick: (ch) => {
+            hiddenInputEl.value = ch.id;
+            syncPrettyChannelInputFromHidden(hiddenInputEl);
+        }
+    });
+
+    displayInput.addEventListener('change', commitTypedValue);
+    displayInput.addEventListener('blur', commitTypedValue);
+
+    syncPrettyChannelInputFromHidden(hiddenInputEl);
+}
+
 // Wrapper for fetch that handles authentication errors
 window.authenticatedFetch = async function(url, options = {}) {
     try {
@@ -49,9 +266,29 @@ window.authenticatedFetch = async function(url, options = {}) {
 // State
 let currentUser = null;
 let currentGuildId = null;
-let currentSection = 'dashboard';
+let currentSection = 'general';
 let activityChart = null;
 let moderationChart = null;
+let currentBotTimezone = 'UTC';
+
+const SECTION_TITLES = {
+    general: 'General',
+    commands: 'Commands',
+    modules: 'Modules',
+    moderation: 'Moderation',
+    activity: 'Activity',
+    logging: 'Logging',
+    'onboarding-home': 'Onboarding',
+    users: 'User Management',
+    // Hidden/deep-link sections
+    levels: 'Leveling',
+    'no-roleplay': 'No Roleplay',
+    'no-danger-edits': 'No Danger Edits',
+    'reply-thread': 'Reply Threads',
+    onboarding: 'Onboarding Config',
+    'wow-guild': 'WoW Guild',
+    'wow-guest': 'WoW Guest'
+};
 
 // DOM Elements
 const loginScreen = document.getElementById('login-screen');
@@ -128,6 +365,61 @@ function setupEventListeners() {
     document.getElementById('wow-guild-form')?.addEventListener('submit', handleWowGuildSubmit);
     document.getElementById('wow-guest-form')?.addEventListener('submit', handleWowGuestSubmit);
     document.getElementById('add-user-form')?.addEventListener('submit', handleAddUser);
+
+    // General page controls
+    document.getElementById('general-bot-enabled')?.addEventListener('change', async (e) => {
+        if (!currentGuildId) return;
+        const enabled = !!e.target.checked;
+        try {
+            await patchGuildSettings({ bot_enabled: enabled });
+            showToast('Bot enabled updated', 'success');
+        } catch (error) {
+            e.target.checked = !enabled;
+            showToast(error.message || 'Failed to update bot enabled', 'error');
+        }
+    });
+
+    document.getElementById('general-save-prefix')?.addEventListener('click', async () => {
+        if (!currentGuildId) return;
+        const value = document.getElementById('general-cmd-prefix')?.value?.trim() || '!';
+        try {
+            await patchGuildSettings({ cmd_prefix: value });
+            showToast('Prefix updated', 'success');
+        } catch (error) {
+            showToast(error.message || 'Failed to update prefix', 'error');
+        }
+    });
+
+    document.getElementById('general-save-timezone')?.addEventListener('click', async () => {
+        if (!currentGuildId) return;
+        const value = document.getElementById('general-bot-timezone')?.value?.trim() || 'UTC';
+        try {
+            await patchGuildSettings({ bot_timezone: value });
+            showToast('Timezone updated', 'success');
+            const tzEl = document.getElementById('stat-bot-timezone');
+            if (tzEl) tzEl.textContent = value;
+        } catch (error) {
+            showToast(error.message || 'Failed to update timezone', 'error');
+        }
+    });
+
+    document.getElementById('general-save-roles')?.addEventListener('click', async () => {
+        if (!currentGuildId) return;
+        try {
+            await patchGuildSettings({
+                roles_super_admin: getArrayInputValues('roles-super-admin'),
+                roles_admin: getArrayInputValues('roles-admin'),
+                roles_mod: getArrayInputValues('roles-mod'),
+                roles_jr_mod: getArrayInputValues('roles-jr-mod'),
+                roles_helper: getArrayInputValues('roles-helper'),
+                roles_trust: getArrayInputValues('roles-trust'),
+                roles_untrusted: getArrayInputValues('roles-untrusted')
+            });
+            showToast('Roles updated', 'success');
+        } catch (error) {
+            showToast(error.message || 'Failed to update roles', 'error');
+        }
+    });
     
     // Global click delegate
     document.addEventListener('click', handleGlobalClick);
@@ -267,14 +559,21 @@ function showDashboard() {
         setGuildId(savedGuildId);
     }
     
-    // Restore last visited section or default to dashboard
-    const lastSection = localStorage.getItem('lastSection') || 'dashboard';
-    navigateTo(lastSection);
+    // Restore last visited section or default to General
+    const lastSection = localStorage.getItem('lastSection') || 'general';
+    navigateTo(lastSection === 'dashboard' ? 'general' : lastSection);
 }
 
 function navigateTo(section) {
+    // Legacy route
+    if (section === 'dashboard') section = 'general';
+    if (!SECTION_TITLES[section] && section !== 'users') section = 'general';
+
     currentSection = section;
     localStorage.setItem('lastSection', section);
+
+    const pageTitle = document.getElementById('page-title');
+    if (pageTitle) pageTitle.textContent = SECTION_TITLES[section] || 'Settings';
     
     // Update nav
     navLinks.forEach(link => {
@@ -305,13 +604,25 @@ async function setGuildId(guildId) {
 
 // Section Data Loading
 async function loadSectionData(section) {
-    if (!currentGuildId && section !== 'dashboard' && section !== 'users') {
+    if (!currentGuildId && section !== 'users') {
+        if (section === 'general') {
+            renderGeneralPlaceholders();
+        }
         return;
     }
     
     switch (section) {
-        case 'dashboard':
-            loadDashboardStats();
+        case 'general':
+            loadGeneralSection();
+            break;
+        case 'commands':
+            loadCommandsSection();
+            break;
+        case 'modules':
+            loadModulesSection();
+            break;
+        case 'moderation':
+            loadModerationSection();
             break;
         case 'no-roleplay':
             loadNoRoleplaySettings();
@@ -341,9 +652,1019 @@ async function loadSectionData(section) {
                 loadLevelsSection(currentGuildId);
             }
             break;
+        case 'logging':
+            loadLoggingSection();
+            break;
+        case 'onboarding-home':
+            loadOnboardingHomeSection();
+            break;
         case 'users':
             loadUsers();
             break;
+    }
+}
+
+function renderGeneralPlaceholders() {
+    const ids = ['stat-total-members', 'stat-joins-today', 'stat-captcha-kicks', 'stat-bot-timezone'];
+    ids.forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = '--';
+    });
+}
+
+async function getGuildSettings() {
+    const response = await authenticatedFetch(`${API_BASE}/guilds/${currentGuildId}/settings`);
+    if (!response.ok) {
+        const error = await safeReadJson(response);
+        throw new Error(formatApiError(error, 'Failed to load settings'));
+    }
+    const data = await response.json();
+    return data.settings || {};
+}
+
+async function patchGuildSettings(partialSettings) {
+    const response = await authenticatedFetch(`${API_BASE}/guilds/${currentGuildId}/settings`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(partialSettings || {})
+    });
+
+    if (!response.ok) {
+        const error = await safeReadJson(response);
+        throw new Error(formatApiError(error, 'Failed to update settings'));
+    }
+
+    const data = await response.json();
+    return data.settings || {};
+}
+
+function createToggleCard({ title, description, enabled, onToggle, onSettings, settingsLabel = 'Settings' }) {
+    const card = document.createElement('div');
+    card.className = 'card';
+
+    const header = document.createElement('div');
+    header.className = 'card-header';
+
+    const h3 = document.createElement('h3');
+    h3.className = 'card-title';
+    h3.textContent = title;
+    header.appendChild(h3);
+    card.appendChild(header);
+
+    const row = document.createElement('div');
+    row.className = 'setting-row';
+
+    const info = document.createElement('div');
+    info.className = 'setting-info';
+    const st = document.createElement('div');
+    st.className = 'setting-title';
+    st.textContent = 'Enabled';
+    const sd = document.createElement('div');
+    sd.className = 'setting-description';
+    sd.textContent = description || '';
+    info.appendChild(st);
+    info.appendChild(sd);
+    row.appendChild(info);
+
+    const toggleLabel = document.createElement('label');
+    toggleLabel.className = 'toggle';
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.checked = !!enabled;
+    const slider = document.createElement('span');
+    slider.className = 'toggle-slider';
+    toggleLabel.appendChild(input);
+    toggleLabel.appendChild(slider);
+    row.appendChild(toggleLabel);
+
+    input.addEventListener('change', async () => {
+        if (typeof onToggle === 'function') {
+            await onToggle(input.checked, input);
+        }
+    });
+
+    card.appendChild(row);
+
+    const footer = document.createElement('div');
+    footer.className = 'mt-4';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-primary';
+    btn.textContent = settingsLabel;
+    btn.addEventListener('click', () => {
+        if (typeof onSettings === 'function') onSettings();
+    });
+    footer.appendChild(btn);
+    card.appendChild(footer);
+
+    return card;
+}
+
+function createLoggingChannelCard({ title, enabled, channelId, onToggle, onChannelChange, onSettings }) {
+    const card = document.createElement('div');
+    card.className = 'card logging-card';
+
+    const header = document.createElement('div');
+    header.className = 'card-header';
+
+    const h3 = document.createElement('h3');
+    h3.className = 'card-title';
+    h3.textContent = title;
+    header.appendChild(h3);
+    card.appendChild(header);
+
+    const row = document.createElement('div');
+    row.className = 'logging-control-row';
+
+    const toggleLabel = document.createElement('label');
+    toggleLabel.className = 'toggle';
+    const toggleInput = document.createElement('input');
+    toggleInput.type = 'checkbox';
+    toggleInput.checked = !!enabled;
+    const slider = document.createElement('span');
+    slider.className = 'toggle-slider';
+    toggleLabel.appendChild(toggleInput);
+    toggleLabel.appendChild(slider);
+    row.appendChild(toggleLabel);
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'form-input logging-channel-input';
+    input.placeholder = 'Search channel…';
+    input.value = resolveChannelNameById(channelId);
+    input.dataset.channelId = channelId || '';
+    row.appendChild(input);
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-primary btn-settings-small';
+    btn.textContent = 'Setting';
+    // Disabled for now; button is present for future expansion
+    btn.disabled = true;
+    btn.addEventListener('click', () => {
+        return;
+    });
+    row.appendChild(btn);
+
+    toggleInput.addEventListener('change', async () => {
+        if (typeof onToggle === 'function') {
+            await onToggle(toggleInput.checked, toggleInput);
+        }
+    });
+
+    const commitChannelChange = async () => {
+        if (typeof onChannelChange !== 'function') return;
+
+        const typed = input.value.trim();
+        const resolvedId = resolveChannelIdFromUserInput(typed);
+        if (typed && !resolvedId) {
+            // Revert to last known good value
+            input.value = resolveChannelNameById(input.dataset.channelId);
+            return;
+        }
+
+        await onChannelChange(resolvedId, input);
+    };
+
+    input.addEventListener('change', commitChannelChange);
+    input.addEventListener('blur', commitChannelChange);
+
+    attachPrettyChannelDropdown(input, {
+        onPick: async (ch) => {
+            input.value = formatChannelDisplayName(ch);
+            input.dataset.channelId = ch.id;
+            await onChannelChange(ch.id, input);
+        }
+    });
+
+    card.appendChild(row);
+    return card;
+}
+
+async function loadGeneralSection() {
+    if (!currentGuildId) {
+        renderGeneralPlaceholders();
+        return;
+    }
+
+    try {
+        const [statsResponse, settings] = await Promise.all([
+            authenticatedFetch(`${API_BASE}/guilds/${currentGuildId}/stats`),
+            getGuildSettings()
+        ]);
+
+        if (statsResponse.ok) {
+            const stats = await statsResponse.json();
+            // Stats cards live in the General section now
+            document.getElementById('stat-total-members').textContent = stats.totalMembers?.toLocaleString() || '--';
+            document.getElementById('stat-joins-today').textContent = stats.joinsToday?.toLocaleString() || '--';
+            document.getElementById('stat-captcha-kicks').textContent = stats.captchaKicks?.toLocaleString() || '--';
+        } else {
+            renderGeneralPlaceholders();
+        }
+
+        const tz = settings.bot_timezone || 'UTC';
+        currentBotTimezone = tz;
+        const tzEl = document.getElementById('stat-bot-timezone');
+        if (tzEl) tzEl.textContent = tz;
+
+        const botEnabled = document.getElementById('general-bot-enabled');
+        if (botEnabled) botEnabled.checked = settings.bot_enabled !== false;
+
+        const prefix = document.getElementById('general-cmd-prefix');
+        if (prefix) prefix.value = settings.cmd_prefix || '!';
+
+        const tzInput = document.getElementById('general-bot-timezone');
+        if (tzInput) tzInput.value = tz;
+
+        setArrayInputValues('roles-super-admin', settings.roles_super_admin || []);
+        setArrayInputValues('roles-admin', settings.roles_admin || []);
+        setArrayInputValues('roles-mod', settings.roles_mod || []);
+        setArrayInputValues('roles-jr-mod', settings.roles_jr_mod || []);
+        setArrayInputValues('roles-helper', settings.roles_helper || []);
+        setArrayInputValues('roles-trust', settings.roles_trust || []);
+        setArrayInputValues('roles-untrusted', settings.roles_untrusted || []);
+    } catch (error) {
+        console.error('Failed to load general section:', error);
+        showToast(error.message || 'Failed to load general section', 'error');
+    }
+}
+
+async function loadCommandsSection() {
+    const container = document.getElementById('commands-list');
+    if (!container) return;
+    container.innerHTML = '';
+
+    try {
+        const response = await authenticatedFetch(`${API_BASE}/guilds/${currentGuildId}/commands`);
+        if (!response.ok) {
+            const error = await safeReadJson(response);
+            throw new Error(formatApiError(error, 'Failed to load commands'));
+        }
+
+        const { commands } = await response.json();
+        (commands || []).forEach((cmd) => {
+            const title = cmd.command_name;
+            const flags = [
+                cmd.has_slash ? 'slash' : null,
+                cmd.has_prefix ? 'prefix' : null
+            ].filter(Boolean).join(', ');
+            const desc = `${cmd.category || 'uncategorized'}${flags ? ` • ${flags}` : ''}`;
+
+            const card = createToggleCard({
+                title,
+                description: desc,
+                enabled: cmd.enabled !== false,
+                onToggle: async (enabled, checkbox) => {
+                    try {
+                        const r = await authenticatedFetch(`${API_BASE}/guilds/${currentGuildId}/commands/${encodeURIComponent(cmd.command_name)}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ enabled })
+                        });
+                        if (!r.ok) {
+                            const err = await safeReadJson(r);
+                            throw new Error(formatApiError(err, 'Failed to update command'));
+                        }
+                        showToast('Command updated', 'success');
+                    } catch (e) {
+                        checkbox.checked = !enabled;
+                        showToast(e.message || 'Failed to update command', 'error');
+                    }
+                },
+                onSettings: () => showToast('No dashboard settings for this command', 'error')
+            });
+
+            container.appendChild(card);
+        });
+    } catch (error) {
+        console.error('Failed to load commands section:', error);
+        showToast(error.message || 'Failed to load commands', 'error');
+    }
+}
+
+async function loadModulesSection() {
+    const container = document.getElementById('modules-grid');
+    if (!container) return;
+    container.innerHTML = '';
+
+    try {
+        const [settings, replyThreadRes, dangerEditsRes] = await Promise.all([
+            getGuildSettings(),
+            authenticatedFetch(`${API_BASE}/guilds/${currentGuildId}/reply-thread`).catch(() => null),
+            authenticatedFetch(`${API_BASE}/guilds/${currentGuildId}/automod/no-danger-edits`).catch(() => null)
+        ]);
+
+        let replyThreadEnabled = true;
+        let dangerEditsEnabled = true;
+        try {
+            if (replyThreadRes && replyThreadRes.ok) {
+                const d = await replyThreadRes.json();
+                replyThreadEnabled = (d.settings?.enabled ?? true) === true;
+            }
+        } catch {
+            // ignore
+        }
+        try {
+            if (dangerEditsRes && dangerEditsRes.ok) {
+                const d = await dangerEditsRes.json();
+                dangerEditsEnabled = (d.settings?.enabled ?? true) === true;
+            }
+        } catch {
+            // ignore
+        }
+
+        // Leveling (gated via enable_leveling)
+        container.appendChild(createToggleCard({
+            title: 'Leveling',
+            description: 'XP tracking and leveling roles.',
+            enabled: settings.enable_leveling !== false,
+            onToggle: async (enabled, checkbox) => {
+                try {
+                    await patchGuildSettings({ enable_leveling: enabled });
+                    showToast('Leveling updated', 'success');
+                } catch (e) {
+                    checkbox.checked = !enabled;
+                    showToast(e.message || 'Failed to update leveling', 'error');
+                }
+            },
+            onSettings: () => navigateTo('levels')
+        }));
+
+        // Economy
+        container.appendChild(createToggleCard({
+            title: 'Economy',
+            description: 'Eco commands and economy features.',
+            enabled: settings.enable_economy !== false,
+            onToggle: async (enabled, checkbox) => {
+                try {
+                    await patchGuildSettings({ enable_economy: enabled });
+                    showToast('Economy updated', 'success');
+                } catch (e) {
+                    checkbox.checked = !enabled;
+                    showToast(e.message || 'Failed to update economy', 'error');
+                }
+            },
+            onSettings: () => navigateTo('commands')
+        }));
+
+        // Role Menus
+        container.appendChild(createToggleCard({
+            title: 'Role Menus',
+            description: 'Interactive role menus (buttons/selects).',
+            enabled: settings.enable_role_menus !== false,
+            onToggle: async (enabled, checkbox) => {
+                try {
+                    await patchGuildSettings({ enable_role_menus: enabled });
+                    showToast('Role Menus updated', 'success');
+                } catch (e) {
+                    checkbox.checked = !enabled;
+                    showToast(e.message || 'Failed to update role menus', 'error');
+                }
+            },
+            onSettings: () => showToast('Role menu settings UI not implemented yet', 'error')
+        }));
+
+        // Auto Role
+        container.appendChild(createToggleCard({
+            title: 'Auto Role',
+            description: 'Assign a role to new members on join.',
+            enabled: settings.auto_role_enabled === true,
+            onToggle: async (enabled, checkbox) => {
+                try {
+                    await patchGuildSettings({ auto_role_enabled: enabled });
+                    showToast('Auto Role updated', 'success');
+                } catch (e) {
+                    checkbox.checked = !enabled;
+                    showToast(e.message || 'Failed to update auto role', 'error');
+                }
+            },
+            onSettings: async () => {
+                const current = settings.auto_role_id || '';
+                const roleId = prompt('Enter Auto Role role ID:', current);
+                if (roleId === null) return;
+                try {
+                    await patchGuildSettings({ auto_role_id: roleId.trim() || null });
+                    showToast('Auto Role role updated', 'success');
+                    loadModulesSection();
+                } catch (e) {
+                    showToast(e.message || 'Failed to update auto role role', 'error');
+                }
+            }
+        }));
+
+        // Reply Threads
+        container.appendChild(createToggleCard({
+            title: 'Reply Threads',
+            description: 'Auto-thread replies in configured channels.',
+            enabled: replyThreadEnabled,
+            onToggle: async (enabled, checkbox) => {
+                try {
+                    const getRes = await authenticatedFetch(`${API_BASE}/guilds/${currentGuildId}/reply-thread`);
+                    const data = await getRes.json();
+                    const current = data.settings || {};
+                    const putRes = await authenticatedFetch(`${API_BASE}/guilds/${currentGuildId}/reply-thread`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ...current, enabled })
+                    });
+                    if (!putRes.ok) {
+                        const err = await safeReadJson(putRes);
+                        throw new Error(formatApiError(err, 'Failed to update reply threads'));
+                    }
+                    showToast('Reply Threads updated', 'success');
+                } catch (e) {
+                    checkbox.checked = !enabled;
+                    showToast(e.message || 'Failed to update reply threads', 'error');
+                }
+            },
+            onSettings: () => navigateTo('reply-thread')
+        }));
+
+        // Danger Edits
+        container.appendChild(createToggleCard({
+            title: 'Danger Edits',
+            description: 'Detect and respond to dangerous edited content.',
+            enabled: dangerEditsEnabled,
+            onToggle: async (enabled, checkbox) => {
+                try {
+                    const getRes = await authenticatedFetch(`${API_BASE}/guilds/${currentGuildId}/automod/no-danger-edits`);
+                    const data = await getRes.json();
+                    const current = data.settings || {};
+                    const putRes = await authenticatedFetch(`${API_BASE}/guilds/${currentGuildId}/automod/no-danger-edits`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ...current, enabled })
+                    });
+                    if (!putRes.ok) {
+                        const err = await safeReadJson(putRes);
+                        throw new Error(formatApiError(err, 'Failed to update danger edits'));
+                    }
+                    showToast('Danger Edits updated', 'success');
+                } catch (e) {
+                    checkbox.checked = !enabled;
+                    showToast(e.message || 'Failed to update danger edits', 'error');
+                }
+            },
+            onSettings: () => navigateTo('no-danger-edits')
+        }));
+
+        // (Enabled state for Reply Threads/Danger Edits is loaded upfront.)
+    } catch (error) {
+        console.error('Failed to load modules section:', error);
+        showToast(error.message || 'Failed to load modules', 'error');
+    }
+}
+
+async function loadModerationSection() {
+    await Promise.all([
+        loadModerationMutes(),
+        loadModerationRecentActions(),
+        loadModerationModulesCards()
+    ]);
+}
+
+async function loadModerationMutes() {
+    const tbody = document.getElementById('current-mutes-table');
+    if (!tbody) return;
+
+    try {
+        const res = await authenticatedFetch(`${API_BASE}/guilds/${currentGuildId}/moderation/muted?limit=25`);
+        if (!res.ok) {
+            const err = await safeReadJson(res);
+            throw new Error(formatApiError(err, 'Failed to load muted users'));
+        }
+        const data = await res.json();
+        const rows = data.mutedUsers || [];
+
+        if (rows.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" class="text-center text-gray-400 py-4">No active mutes</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = rows.map((r) => {
+            let expires = '—';
+            if (r.expires_at) {
+                try {
+                    expires = new Date(r.expires_at).toLocaleString(undefined, { timeZone: currentBotTimezone });
+                } catch {
+                    expires = new Date(r.expires_at).toLocaleString();
+                }
+            }
+            return `
+                <tr>
+                    <td class="font-mono">${escapeHtml(r.user_id)}</td>
+                    <td>${escapeHtml(r.reason || '')}</td>
+                    <td>${escapeHtml(expires)}</td>
+                </tr>
+            `;
+        }).join('');
+    } catch (e) {
+        console.error('Failed to load mutes:', e);
+        tbody.innerHTML = '<tr><td colspan="3" class="text-center text-gray-400 py-4">Failed to load</td></tr>';
+    }
+}
+
+async function loadModerationRecentActions() {
+    try {
+        const res = await authenticatedFetch(`${API_BASE}/guilds/${currentGuildId}/stats`);
+        if (!res.ok) return;
+        const data = await res.json();
+        renderRecentActions(data.recentActions || []);
+    } catch {
+        // ignore
+    }
+}
+
+async function loadModerationModulesCards() {
+    const container = document.getElementById('moderation-modules-grid');
+    if (!container) return;
+    container.innerHTML = '';
+
+    let settings = {};
+    try {
+        settings = await getGuildSettings();
+    } catch {
+        // ignore
+    }
+
+    async function setCommandsEnabled(commandNames, enabled) {
+        const unique = Array.from(new Set((commandNames || []).filter(Boolean)));
+        await Promise.all(
+            unique.map((name) =>
+                authenticatedFetch(`${API_BASE}/guilds/${currentGuildId}/commands/${encodeURIComponent(name)}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled })
+                })
+            )
+        );
+    }
+
+    async function getCommandsEnabledMap() {
+        const res = await authenticatedFetch(`${API_BASE}/guilds/${currentGuildId}/commands`);
+        if (!res.ok) return new Map();
+        const data = await res.json();
+        const map = new Map();
+        (data.commands || []).forEach((c) => map.set(c.command_name, c.enabled !== false));
+        return map;
+    }
+
+    const cmdEnabled = await getCommandsEnabledMap();
+
+    // Automod (module toggle)
+    container.appendChild(createToggleCard({
+        title: 'Automod',
+        description: 'Enable/disable automod features for this server.',
+        enabled: settings.enable_automod !== false,
+        onToggle: async (enabled, checkbox) => {
+            try {
+                await patchGuildSettings({ enable_automod: enabled });
+                showToast('Automod updated', 'success');
+            } catch (e) {
+                checkbox.checked = !enabled;
+                showToast(e.message || 'Failed to update automod', 'error');
+            }
+        },
+        onSettings: () => navigateTo('no-roleplay')
+    }));
+
+    // Automod submodules (placeholders)
+    container.appendChild(createToggleCard({
+        title: 'Automod - Discord Mode',
+        description: 'Leave empty for now.',
+        enabled: true,
+        onToggle: async (_enabled, checkbox) => {
+            checkbox.checked = true;
+            showToast('Not implemented yet', 'error');
+        },
+        onSettings: () => showToast('Not implemented yet', 'error')
+    }));
+
+    container.appendChild(createToggleCard({
+        title: 'Automod - Legacy Mode',
+        description: 'Leave empty for now.',
+        enabled: true,
+        onToggle: async (_enabled, checkbox) => {
+            checkbox.checked = true;
+            showToast('Not implemented yet', 'error');
+        },
+        onSettings: () => showToast('Not implemented yet', 'error')
+    }));
+
+    // Muting (module toggle via commands)
+    const mutingCommands = ['mute', 'unmute'];
+    const mutingEnabled = mutingCommands.every((c) => cmdEnabled.get(c) !== false);
+    container.appendChild(createToggleCard({
+        title: 'Muting',
+        description: 'Mute/unmute moderation commands and related settings.',
+        enabled: mutingEnabled,
+        onToggle: async (enabled, checkbox) => {
+            try {
+                await setCommandsEnabled(mutingCommands, enabled);
+                showToast('Muting updated', 'success');
+            } catch (e) {
+                checkbox.checked = !enabled;
+                showToast(e.message || 'Failed to update muting', 'error');
+            }
+        },
+        onSettings: async () => {
+            try {
+                const muteRole = prompt('mute_roleID (role ID):', settings.mute_roleid || '');
+                if (muteRole === null) return;
+                const immuneUsersRaw = prompt('mute_immuneUserIDs (comma-separated user IDs):', (settings.mute_immuneuserids || []).join(','));
+                if (immuneUsersRaw === null) return;
+                const rolesRemovedRaw = prompt('mute_rolesRemoved (comma-separated role IDs):', (settings.mute_rolesremoved || []).join(','));
+                if (rolesRemovedRaw === null) return;
+
+                const immuneUsers = immuneUsersRaw.split(',').map(s => s.trim()).filter(Boolean);
+                const rolesRemoved = rolesRemovedRaw.split(',').map(s => s.trim()).filter(Boolean);
+                await patchGuildSettings({
+                    mute_roleID: muteRole.trim() || null,
+                    mute_immuneUserIDs: immuneUsers,
+                    mute_rolesRemoved: rolesRemoved
+                });
+                showToast('Muting settings updated', 'success');
+            } catch (e) {
+                showToast(e.message || 'Failed to update muting settings', 'error');
+            }
+        }
+    }));
+
+    // Bans/Kicks (module toggle via ban commands)
+    const banCommands = ['ban', 'unban', 'cban', 'ccBan'];
+    const bansEnabled = banCommands.every((c) => cmdEnabled.get(c) !== false);
+    container.appendChild(createToggleCard({
+        title: 'Bans/Kicks',
+        description: 'Ban/unban commands and ban/kick immunity settings.',
+        enabled: bansEnabled,
+        onToggle: async (enabled, checkbox) => {
+            try {
+                await setCommandsEnabled(banCommands, enabled);
+                showToast('Bans/Kicks updated', 'success');
+            } catch (e) {
+                checkbox.checked = !enabled;
+                showToast(e.message || 'Failed to update bans/kicks', 'error');
+            }
+        },
+        onSettings: async () => {
+            try {
+                const banImmRolesRaw = prompt('ban_immuneRoles (comma-separated role IDs):', (settings.ban_immuneroles || []).join(','));
+                if (banImmRolesRaw === null) return;
+                const banImmUsersRaw = prompt('ban_immuneUserID (comma-separated user IDs):', (settings.ban_immuneuserid || []).join(','));
+                if (banImmUsersRaw === null) return;
+
+                const kickImmRolesRaw = prompt('kick_immuneRoles (comma-separated role IDs):', (settings.kick_immuneroles || []).join(','));
+                if (kickImmRolesRaw === null) return;
+                const kickImmUsersRaw = prompt('kick_immuneUserID (comma-separated user IDs):', (settings.kick_immuneuserid || []).join(','));
+                if (kickImmUsersRaw === null) return;
+
+                await patchGuildSettings({
+                    ban_immuneRoles: banImmRolesRaw.split(',').map(s => s.trim()).filter(Boolean),
+                    ban_immuneUserID: banImmUsersRaw.split(',').map(s => s.trim()).filter(Boolean),
+                    kick_immuneRoles: kickImmRolesRaw.split(',').map(s => s.trim()).filter(Boolean),
+                    kick_immuneUserID: kickImmUsersRaw.split(',').map(s => s.trim()).filter(Boolean)
+                });
+                showToast('Bans/Kicks settings updated', 'success');
+            } catch (e) {
+                showToast(e.message || 'Failed to update bans/kicks settings', 'error');
+            }
+        }
+    }));
+
+    // Kick (settings only; no dedicated kick command in this repo)
+    container.appendChild(createToggleCard({
+        title: 'Kick',
+        description: 'Kick settings (no dedicated kick command detected).',
+        enabled: true,
+        onToggle: async (_enabled, checkbox) => {
+            checkbox.checked = true;
+            showToast('Kick module toggle not implemented', 'error');
+        },
+        onSettings: async () => {
+            try {
+                const kickImmRolesRaw = prompt('kick_immuneRoles (comma-separated role IDs):', (settings.kick_immuneroles || []).join(','));
+                if (kickImmRolesRaw === null) return;
+                const kickImmUsersRaw = prompt('kick_immuneUserID (comma-separated user IDs):', (settings.kick_immuneuserid || []).join(','));
+                if (kickImmUsersRaw === null) return;
+                await patchGuildSettings({
+                    kick_immuneRoles: kickImmRolesRaw.split(',').map(s => s.trim()).filter(Boolean),
+                    kick_immuneUserID: kickImmUsersRaw.split(',').map(s => s.trim()).filter(Boolean)
+                });
+                showToast('Kick settings updated', 'success');
+            } catch (e) {
+                showToast(e.message || 'Failed to update kick settings', 'error');
+            }
+        }
+    }));
+
+    // OpenAI
+    container.appendChild(createToggleCard({
+        title: 'Open AI',
+        description: 'Enable/disable OpenAI features (if configured).',
+        enabled: settings.enable_openai !== false,
+        onToggle: async (enabled, checkbox) => {
+            try {
+                await patchGuildSettings({ enable_openAI: enabled });
+                showToast('OpenAI updated', 'success');
+            } catch (e) {
+                checkbox.checked = !enabled;
+                showToast(e.message || 'Failed to update OpenAI', 'error');
+            }
+        },
+        onSettings: () => showToast('OpenAI settings UI not implemented yet', 'error')
+    }));
+
+    // (No additional hydration needed here; values come from settings/command registry)
+}
+
+async function loadLoggingSection() {
+    const container = document.getElementById('logging-grid');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const LOG_KEYS = [
+        'ch_actionLog',
+        'ch_kickbanLog',
+        'ch_auditLog',
+        'ch_airlockJoin',
+        'ch_airlockLeave',
+        'ch_deletedMessages',
+        'ch_editedMessages',
+        'ch_automod_AI',
+        'ch_voiceLog',
+        'ch_inviteLog',
+        'ch_permanentInvites',
+        'ch_memberJoin'
+    ];
+
+    try {
+        const settings = await getGuildSettings();
+
+        const actionLogFallback = settings['ch_actionlog'] || '';
+
+        LOG_KEYS.forEach((key) => {
+            const channelKey = key;
+            const enableKey = `enable_${key}`;
+
+            const currentChannelId = settings[channelKey.toLowerCase()] || '';
+            const enableValue = settings[enableKey.toLowerCase()];
+            const enabled = (typeof enableValue === 'boolean') ? enableValue : !!currentChannelId;
+
+            container.appendChild(createLoggingChannelCard({
+                title: channelKey,
+                enabled: enabled && !!currentChannelId,
+                channelId: currentChannelId,
+                onToggle: async (nextEnabled, checkboxEl) => {
+                    try {
+                        if (!nextEnabled) {
+                            await patchGuildSettings({ [enableKey]: false });
+                            showToast('Logging updated', 'success');
+                            loadLoggingSection();
+                            return;
+                        }
+
+                        // Turning ON requires a channel selection.
+                        if (!currentChannelId) {
+                            if (channelKey !== 'ch_actionLog' && actionLogFallback) {
+                                await patchGuildSettings({
+                                    [channelKey]: actionLogFallback,
+                                    [enableKey]: true
+                                });
+                                showToast('Logging updated', 'success');
+                                loadLoggingSection();
+                                return;
+                            }
+
+                            checkboxEl.checked = false;
+                            showToast('Select a channel first', 'error');
+                            return;
+                        }
+
+                        await patchGuildSettings({ [enableKey]: true });
+                        showToast('Logging updated', 'success');
+                        loadLoggingSection();
+                    } catch (e) {
+                        checkboxEl.checked = !nextEnabled;
+                        showToast(e.message || 'Failed to update logging', 'error');
+                    }
+                },
+                onChannelChange: async (nextChannelId, inputEl) => {
+                    const normalized = String(nextChannelId || '').trim();
+                    try {
+                        if (!normalized) {
+                            // Clearing the channel also disables the logger.
+                            await patchGuildSettings({
+                                [channelKey]: null,
+                                [enableKey]: false
+                            });
+                            showToast('Logging updated', 'success');
+                            loadLoggingSection();
+                            return;
+                        }
+
+                        await patchGuildSettings({ [channelKey]: normalized });
+                        showToast('Logging updated', 'success');
+                        loadLoggingSection();
+                    } catch (e) {
+                        // Revert UI to current DB value
+                        inputEl.value = resolveChannelNameById(currentChannelId);
+                        showToast(e.message || 'Failed to update logging', 'error');
+                    }
+                },
+                onSettings: async () => {
+                    const value = prompt(`Enter channel ID for ${channelKey}:`, currentChannelId || actionLogFallback);
+                    if (value === null) return;
+                    try {
+                        const trimmed = value.trim();
+                        if (!trimmed) {
+                            await patchGuildSettings({ [channelKey]: null, [enableKey]: false });
+                        } else {
+                            await patchGuildSettings({ [channelKey]: trimmed });
+                        }
+                        showToast('Logging updated', 'success');
+                        loadLoggingSection();
+                    } catch (e) {
+                        showToast(e.message || 'Failed to update logging', 'error');
+                    }
+                }
+            }));
+        });
+
+        // Also include ch_* arrays from init.sql
+        const ignoreCards = [
+            { key: 'ch_categoryIgnoreAutomod', title: 'ch_categoryIgnoreAutomod', description: 'Category IDs ignored by automod.' },
+            { key: 'ch_channelIgnoreAutomod', title: 'ch_channelIgnoreAutomod', description: 'Channel IDs ignored by automod.' }
+        ];
+
+        ignoreCards.forEach(({ key, title, description }) => {
+            const currentArr = settings[key.toLowerCase()] || [];
+            const enabled = Array.isArray(currentArr) ? currentArr.length > 0 : !!currentArr;
+
+            container.appendChild(createToggleCard({
+                title,
+                description,
+                enabled,
+                onToggle: async (enabled, checkbox) => {
+                    try {
+                        if (!enabled) {
+                            await patchGuildSettings({ [key]: [] });
+                            showToast('Updated', 'success');
+                            loadLoggingSection();
+                            return;
+                        }
+
+                        const value = prompt(`Enter comma-separated IDs for ${key}:`, (currentArr || []).join(','));
+                        if (value === null) {
+                            checkbox.checked = false;
+                            return;
+                        }
+                        const arr = value.split(',').map(s => s.trim()).filter(Boolean);
+                        await patchGuildSettings({ [key]: arr });
+                        showToast('Updated', 'success');
+                        loadLoggingSection();
+                    } catch (e) {
+                        checkbox.checked = !enabled;
+                        showToast(e.message || 'Failed to update', 'error');
+                    }
+                },
+                onSettings: async () => {
+                    const value = prompt(`Enter comma-separated IDs for ${key}:`, (currentArr || []).join(','));
+                    if (value === null) return;
+                    try {
+                        const arr = value.split(',').map(s => s.trim()).filter(Boolean);
+                        await patchGuildSettings({ [key]: arr });
+                        showToast('Updated', 'success');
+                        loadLoggingSection();
+                    } catch (e) {
+                        showToast(e.message || 'Failed to update', 'error');
+                    }
+                }
+            }));
+        });
+    } catch (error) {
+        console.error('Failed to load logging section:', error);
+        showToast(error.message || 'Failed to load logging', 'error');
+    }
+}
+
+async function loadOnboardingHomeSection() {
+    const container = document.getElementById('onboarding-modules-grid');
+    if (!container) return;
+    container.innerHTML = '';
+
+    // Gate Mode (Onboarding)
+    container.appendChild(createToggleCard({
+        title: 'Gate Mode',
+        description: 'Role-gated onboarding flow.',
+        enabled: true,
+        onToggle: async (enabled, checkbox) => {
+            try {
+                const getRes = await authenticatedFetch(`${API_BASE}/guilds/${currentGuildId}/onboarding`);
+                const data = await getRes.json();
+                const current = data.settings || {};
+                const putRes = await authenticatedFetch(`${API_BASE}/guilds/${currentGuildId}/onboarding`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...current, enabled })
+                });
+                if (!putRes.ok) {
+                    const err = await safeReadJson(putRes);
+                    throw new Error(formatApiError(err, 'Failed to update onboarding'));
+                }
+                showToast('Onboarding updated', 'success');
+            } catch (e) {
+                checkbox.checked = !enabled;
+                showToast(e.message || 'Failed to update onboarding', 'error');
+            }
+        },
+        onSettings: () => navigateTo('onboarding')
+    }));
+
+    // WoW Guild
+    container.appendChild(createToggleCard({
+        title: 'Guild',
+        description: 'WoW guild onboarding flow.',
+        enabled: true,
+        onToggle: async (enabled, checkbox) => {
+            try {
+                const getRes = await authenticatedFetch(`${API_BASE}/guilds/${currentGuildId}/wow-guild`);
+                const data = await getRes.json();
+                const current = data.settings || {};
+                const putRes = await authenticatedFetch(`${API_BASE}/guilds/${currentGuildId}/wow-guild`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...current, enabled })
+                });
+                if (!putRes.ok) {
+                    const err = await safeReadJson(putRes);
+                    throw new Error(formatApiError(err, 'Failed to update WoW guild'));
+                }
+                showToast('WoW guild updated', 'success');
+            } catch (e) {
+                checkbox.checked = !enabled;
+                showToast(e.message || 'Failed to update WoW guild', 'error');
+            }
+        },
+        onSettings: () => navigateTo('wow-guild')
+    }));
+
+    // WoW Guest
+    container.appendChild(createToggleCard({
+        title: 'Guild Guest',
+        description: 'WoW guest onboarding flow.',
+        enabled: true,
+        onToggle: async (enabled, checkbox) => {
+            try {
+                const getRes = await authenticatedFetch(`${API_BASE}/guilds/${currentGuildId}/wow-guest`);
+                const data = await getRes.json();
+                const current = data.settings || {};
+                const putRes = await authenticatedFetch(`${API_BASE}/guilds/${currentGuildId}/wow-guest`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...current, enabled })
+                });
+                if (!putRes.ok) {
+                    const err = await safeReadJson(putRes);
+                    throw new Error(formatApiError(err, 'Failed to update WoW guest'));
+                }
+                showToast('WoW guest updated', 'success');
+            } catch (e) {
+                checkbox.checked = !enabled;
+                showToast(e.message || 'Failed to update WoW guest', 'error');
+            }
+        },
+        onSettings: () => navigateTo('wow-guest')
+    }));
+
+    // Hydrate enabled states
+    try {
+        const [onRes, wgRes, wgsRes] = await Promise.all([
+            authenticatedFetch(`${API_BASE}/guilds/${currentGuildId}/onboarding`),
+            authenticatedFetch(`${API_BASE}/guilds/${currentGuildId}/wow-guild`),
+            authenticatedFetch(`${API_BASE}/guilds/${currentGuildId}/wow-guest`)
+        ]);
+
+        if (onRes.ok) {
+            const d = await onRes.json();
+            const enabled = (d.settings?.enabled ?? true) === true;
+            const inputs = container.querySelectorAll('input[type="checkbox"]');
+            if (inputs[0]) inputs[0].checked = enabled;
+        }
+        if (wgRes.ok) {
+            const d = await wgRes.json();
+            const enabled = (d.settings?.enabled ?? true) === true;
+            const inputs = container.querySelectorAll('input[type="checkbox"]');
+            if (inputs[1]) inputs[1].checked = enabled;
+        }
+        if (wgsRes.ok) {
+            const d = await wgsRes.json();
+            const enabled = (d.settings?.enabled ?? true) === true;
+            const inputs = container.querySelectorAll('input[type="checkbox"]');
+            if (inputs[2]) inputs[2].checked = enabled;
+        }
+    } catch {
+        // ignore
     }
 }
 
@@ -373,10 +1694,17 @@ async function loadDashboardStats() {
 }
 
 function renderDashboardStats(data) {
-    document.getElementById('stat-total-members').textContent = data.totalMembers?.toLocaleString() || '--';
-    document.getElementById('stat-joins-today').textContent = data.joinsToday?.toLocaleString() || '--';
-    document.getElementById('stat-mod-actions').textContent = data.modActions7d?.toLocaleString() || '--';
-    document.getElementById('stat-captcha-kicks').textContent = data.captchaKicks?.toLocaleString() || '--';
+    const totalEl = document.getElementById('stat-total-members');
+    if (totalEl) totalEl.textContent = data.totalMembers?.toLocaleString() || '--';
+
+    const joinsEl = document.getElementById('stat-joins-today');
+    if (joinsEl) joinsEl.textContent = data.joinsToday?.toLocaleString() || '--';
+
+    const modEl = document.getElementById('stat-mod-actions');
+    if (modEl) modEl.textContent = data.modActions7d?.toLocaleString() || '--';
+
+    const captchaEl = document.getElementById('stat-captcha-kicks');
+    if (captchaEl) captchaEl.textContent = data.captchaKicks?.toLocaleString() || '--';
 }
 
 function renderPlaceholderCharts() {
@@ -716,6 +2044,8 @@ function populateNoDangerEditsForm(data) {
     const ignoredRoles = parseArrayField(data.ignored_roles);
     setArrayInputValues('danger-edits-ignored-channels', ignoredChannels);
     setArrayInputValues('danger-edits-ignored-roles', ignoredRoles);
+
+    syncPrettyChannelInputFromHidden(document.getElementById('danger-edits-log-channel'));
 }
 
 async function handleNoDangerEditsSubmit(e) {
@@ -783,6 +2113,9 @@ function populateReplyThreadForm(data) {
     document.getElementById('reply-thread-warning-message').value = data.dating_warning_message || '';
     
     setArrayInputValues('reply-thread-channels', data.thread_channels || []);
+
+    syncPrettyChannelInputFromHidden(document.getElementById('reply-thread-introduction-channel'));
+    syncPrettyChannelInputFromHidden(document.getElementById('reply-thread-debug-channel'));
 }
 
 async function handleReplyThreadSubmit(e) {
@@ -844,6 +2177,9 @@ function populateOnboardingForm(data) {
     document.getElementById('onboarding-gate-role').value = data.settings?.gate_role_id || '';
     document.getElementById('onboarding-log-channel').value = data.settings?.log_channel_id || '';
     document.getElementById('onboarding-welcome-channel').value = data.settings?.welcome_channel_id || '';
+
+    syncPrettyChannelInputFromHidden(document.getElementById('onboarding-log-channel'));
+    syncPrettyChannelInputFromHidden(document.getElementById('onboarding-welcome-channel'));
     
     // Render categories and roles
     renderOnboardingRoles(data.roles || [], data.categories || []);
@@ -1347,6 +2683,11 @@ function populateWowGuildForm(data) {
     document.getElementById('wow-guild-welcome-message').value = data.welcome_message || '';
     document.getElementById('wow-guild-code-prompt').value = data.code_prompt_message || '';
     document.getElementById('wow-guild-invalid-code').value = data.invalid_code_message || '';
+
+    // Sync upgraded channel selectors (if present)
+    ['wow-guild-onboarding-channel', 'wow-guild-welcome-channel', 'wow-guild-log-channel', 'wow-guild-intro-channel']
+        .map(id => document.getElementById(id))
+        .forEach(el => syncPrettyChannelInputFromHidden(el));
 }
 
 async function handleWowGuildSubmit(e) {
@@ -1432,6 +2773,11 @@ function populateWowGuestForm(data) {
     document.getElementById('wow-guest-intro-channel').value = data.introduction_channel_id || '';
     document.getElementById('wow-guest-welcome-message').value = data.welcome_message || '';
     document.getElementById('wow-guest-button-label').value = data.button_label || '';
+
+    // Sync upgraded channel selectors (if present)
+    ['wow-guest-onboarding-channel', 'wow-guest-welcome-channel', 'wow-guest-log-channel', 'wow-guest-intro-channel']
+        .map(id => document.getElementById(id))
+        .forEach(el => syncPrettyChannelInputFromHidden(el));
 }
 
 async function handleWowGuestSubmit(e) {
@@ -1578,7 +2924,11 @@ function setArrayInputValues(containerId, values) {
     // Add new tags
     const input = container.querySelector('.array-input-field');
     values.forEach(value => {
-        addArrayTag(container, value, input);
+        if (container.dataset.arrayType === 'channel') {
+            addArrayTag(container, value, input, resolveChannelNameById(value));
+        } else {
+            addArrayTag(container, value, input);
+        }
     });
 }
 
@@ -1590,12 +2940,13 @@ function getArrayInputValues(containerId) {
     return Array.from(tags).map(tag => tag.dataset.value);
 }
 
-function addArrayTag(container, value, inputField) {
+function addArrayTag(container, value, inputField, displayText) {
     const tag = document.createElement('span');
     tag.className = 'array-tag';
     tag.dataset.value = value;
     
-    const textNode = document.createTextNode(value + ' ');
+    const label = (displayText !== undefined && displayText !== null) ? String(displayText) : String(value);
+    const textNode = document.createTextNode(label + ' ');
     tag.appendChild(textNode);
     
     const removeBtn = document.createElement('button');
@@ -1621,7 +2972,17 @@ document.querySelectorAll('.array-input').forEach(container => {
             e.preventDefault();
             const value = input.value.trim();
             if (value) {
-                addArrayTag(container, value, input);
+                if (container.dataset.arrayType === 'channel') {
+                    const id = resolveChannelIdFromUserInput(value);
+                    if (!id) {
+                        showToast('Select a valid channel (or paste its ID)', 'error');
+                        input.value = '';
+                        return;
+                    }
+                    addArrayTag(container, id, input, resolveChannelNameById(id));
+                } else {
+                    addArrayTag(container, value, input);
+                }
                 input.value = '';
             }
         }
@@ -1630,7 +2991,17 @@ document.querySelectorAll('.array-input').forEach(container => {
     input.addEventListener('blur', () => {
         const value = input.value.trim();
         if (value) {
-            addArrayTag(container, value, input);
+            if (container.dataset.arrayType === 'channel') {
+                const id = resolveChannelIdFromUserInput(value);
+                if (!id) {
+                    showToast('Select a valid channel (or paste its ID)', 'error');
+                    input.value = '';
+                    return;
+                }
+                addArrayTag(container, id, input, resolveChannelNameById(id));
+            } else {
+                addArrayTag(container, value, input);
+            }
             input.value = '';
         }
     });
@@ -1720,6 +3091,13 @@ function updateSelectors() {
         channelList.id = 'channel-list';
         document.body.appendChild(channelList);
     }
+
+    let loggingChannelList = document.getElementById('logging-channel-list');
+    if (!loggingChannelList) {
+        loggingChannelList = document.createElement('datalist');
+        loggingChannelList.id = 'logging-channel-list';
+        document.body.appendChild(loggingChannelList);
+    }
     
     // Sort channels: Text first, then Voice, then others. Alphabetical within type.
     const sortedChannels = [...guildChannels].sort((a, b) => {
@@ -1729,6 +3107,12 @@ function updateSelectors() {
 
     channelList.innerHTML = sortedChannels.map(c => 
         `<option value="${c.id}">${c.name} (${getChannelTypeName(c.type)})</option>`
+    ).join('');
+
+    // Logging selector: searchable by name, while we persist IDs under the hood.
+    // Keep values as names here so the input displays names instead of IDs.
+    loggingChannelList.innerHTML = sortedChannels.map(c =>
+        `<option value="${escapeHtml(c.name)}">${c.id} (${getChannelTypeName(c.type)})</option>`
     ).join('');
 
     let roleList = document.getElementById('role-list');
@@ -1797,8 +3181,24 @@ function attachDatalists() {
             if (element.classList.contains('array-input')) {
                 const input = element.querySelector('.array-input-field');
                 if (input) input.setAttribute('list', listId);
+
+                // Upgrade channel array inputs to name-based pretty dropdown (still stores IDs)
+                if (listId === 'channel-list' && input) {
+                    element.dataset.arrayType = 'channel';
+                    attachPrettyChannelDropdown(input, {
+                        onPick: (ch) => {
+                            addArrayTag(element, ch.id, input, formatChannelDisplayName(ch));
+                            input.value = '';
+                        }
+                    });
+                }
             } else {
                 element.setAttribute('list', listId);
+
+                // Upgrade single channel ID inputs to pretty selector.
+                if (listId === 'channel-list' && element.tagName === 'INPUT') {
+                    upgradeSingleChannelIdInput(element);
+                }
             }
         }
     }

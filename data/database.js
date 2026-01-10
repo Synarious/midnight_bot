@@ -730,6 +730,12 @@ const databaseService = new DatabaseService();
 const updatableColumns = new Set([
   'cmd_prefix',
   'bot_enabled',
+  'bot_timezone',
+  'enable_leveling',
+  'enable_economy',
+  'enable_role_menus',
+  'auto_role_enabled',
+  'auto_role_id',
   'roles_super_admin',
   'roles_admin',
   'roles_mod',
@@ -760,7 +766,202 @@ const updatableColumns = new Set([
   'ch_inviteLog',
   'ch_permanentInvites',
   'ch_memberJoin',
+
+  // Logging enable flags (separate from channel selection)
+  'enable_ch_actionLog',
+  'enable_ch_kickbanLog',
+  'enable_ch_auditLog',
+  'enable_ch_airlockJoin',
+  'enable_ch_airlockLeave',
+  'enable_ch_deletedMessages',
+  'enable_ch_editedMessages',
+  'enable_ch_automod_AI',
+  'enable_ch_voiceLog',
+  'enable_ch_inviteLog',
+  'enable_ch_permanentInvites',
+  'enable_ch_memberJoin',
 ]);
+
+function resolveEnabledLogChannelId(settings, channelKey) {
+  if (!settings || !channelKey) return null;
+
+  const normalizedChannelKey = String(channelKey).toLowerCase();
+  const enableKey = `enable_${normalizedChannelKey}`;
+
+  const enabledValue = settings[enableKey];
+  if (typeof enabledValue === 'boolean' && enabledValue === false) return null;
+
+  const channelId = settings[normalizedChannelKey] ?? settings[channelKey] ?? null;
+  if (!channelId) return null;
+
+  return channelId;
+}
+
+// ==================== COMMAND + MODULE SETTINGS ====================
+
+async function isBotEnabled(guildId) {
+  const settings = await getGuildSettings(guildId);
+  return settings?.bot_enabled !== false;
+}
+
+async function isLevelingEnabled(guildId) {
+  const settings = await getGuildSettings(guildId);
+  return settings?.enable_leveling !== false;
+}
+
+async function isEconomyEnabled(guildId) {
+  const settings = await getGuildSettings(guildId);
+  return settings?.enable_economy !== false;
+}
+
+async function isRoleMenusEnabled(guildId) {
+  const settings = await getGuildSettings(guildId);
+  return settings?.enable_role_menus !== false;
+}
+
+async function getBotTimezone(guildId) {
+  const settings = await getGuildSettings(guildId);
+  return settings?.bot_timezone || 'UTC';
+}
+
+async function isGuildCommandEnabled(guildId, commandName) {
+  await ensureSchemaReady();
+  if (!guildId || !commandName) return true;
+
+  try {
+    const { rows } = await databaseService.query(
+      `
+      SELECT enabled
+      FROM guild_command_settings
+      WHERE guild_id = $1 AND command_name = $2
+    `,
+      [guildId, String(commandName)],
+      { rateKey: guildId, context: 'isGuildCommandEnabled', skipLogging: true }
+    );
+
+    if (rows.length === 0) return true;
+    return rows[0].enabled !== false;
+  } catch (error) {
+    // Fail-open to avoid bricking bot if dashboard table is missing.
+    log('warn', 'Command enable check failed; allowing command', { guildId, commandName, error: error.message });
+    return true;
+  }
+}
+
+async function setGuildCommandEnabled(guildId, commandName, enabled) {
+  await ensureSchemaReady();
+  if (!guildId || !commandName) return false;
+
+  try {
+    await databaseService.query(
+      `
+      INSERT INTO guild_command_settings (guild_id, command_name, enabled)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (guild_id, command_name)
+      DO UPDATE SET enabled = EXCLUDED.enabled, updated_at = NOW()
+    `,
+      [guildId, String(commandName), enabled === true],
+      { rateKey: guildId, context: 'setGuildCommandEnabled' }
+    );
+    return true;
+  } catch (error) {
+    log('error', 'Failed to update guild command setting', { guildId, commandName, error: error.message });
+    return false;
+  }
+}
+
+async function syncCommandRegistryFromClient(client) {
+  await ensureSchemaReady();
+  if (!client) return;
+
+  // Best-effort: ensure tables exist even on older DBs.
+  try {
+    await databaseService.query(
+      `
+      CREATE TABLE IF NOT EXISTS command_registry (
+        command_name TEXT PRIMARY KEY,
+        category TEXT,
+        has_slash BOOLEAN DEFAULT FALSE,
+        has_prefix BOOLEAN DEFAULT FALSE,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `,
+      [],
+      { context: 'syncCommandRegistryFromClient:ensureRegistry', skipLogging: true }
+    );
+
+    await databaseService.query(
+      `
+      CREATE TABLE IF NOT EXISTS guild_command_settings (
+        guild_id TEXT NOT NULL,
+        command_name TEXT NOT NULL,
+        enabled BOOLEAN NOT NULL DEFAULT TRUE,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (guild_id, command_name)
+      )
+    `,
+      [],
+      { context: 'syncCommandRegistryFromClient:ensureSettings', skipLogging: true }
+    );
+  } catch (e) {
+    // ignore; upsert below will fail-open if DB user lacks DDL.
+  }
+
+  const rows = new Map();
+
+  for (const [name, command] of client.slashCommands || []) {
+    const category = command?.category || null;
+    const entry = rows.get(name) || { command_name: name, category, has_slash: false, has_prefix: false };
+    entry.has_slash = true;
+    if (category && !entry.category) entry.category = category;
+    rows.set(name, entry);
+  }
+
+  for (const [name, command] of client.commands || []) {
+    const category = command?.category || null;
+    const entry = rows.get(name) || { command_name: name, category, has_slash: false, has_prefix: false };
+    entry.has_prefix = true;
+    if (category && !entry.category) entry.category = category;
+    rows.set(name, entry);
+  }
+
+  if (rows.size === 0) return;
+
+  const values = Array.from(rows.values());
+  // Bulk upsert in chunks to keep SQL readable and safe.
+  const chunkSize = 200;
+  for (let i = 0; i < values.length; i += chunkSize) {
+    const chunk = values.slice(i, i + chunkSize);
+    const params = [];
+    const placeholders = chunk
+      .map((row, idx) => {
+        const base = idx * 4;
+        params.push(row.command_name, row.category, row.has_slash, row.has_prefix);
+        return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4})`;
+      })
+      .join(',\n');
+
+    try {
+      await databaseService.query(
+        `
+        INSERT INTO command_registry (command_name, category, has_slash, has_prefix)
+        VALUES
+        ${placeholders}
+        ON CONFLICT (command_name)
+        DO UPDATE SET
+          category = COALESCE(EXCLUDED.category, command_registry.category),
+          has_slash = command_registry.has_slash OR EXCLUDED.has_slash,
+          has_prefix = command_registry.has_prefix OR EXCLUDED.has_prefix,
+          updated_at = NOW()
+      `,
+        params,
+        { context: 'syncCommandRegistryFromClient', tokens: chunk.length }
+      );
+    } catch (error) {
+      log('warn', 'Failed to sync command registry chunk', { error: error.message });
+    }
+  }
+}
 
 async function ensureSchemaReady() {
   await databaseService.initialize();
@@ -824,22 +1025,22 @@ async function getGuildSettings(guildId) {
 
 async function getLogChannelId(guildId) {
   const settings = await getGuildSettings(guildId);
-  return settings?.ch_automod_ai ?? null;
+  return resolveEnabledLogChannelId(settings, 'ch_automod_ai');
 }
 
 async function getVoiceLogChannelId(guildId) {
   const settings = await getGuildSettings(guildId);
-  return settings?.ch_voicelog ?? null;
+  return resolveEnabledLogChannelId(settings, 'ch_voicelog');
 }
 
 async function getJoinChannelId(guildId) {
   const settings = await getGuildSettings(guildId);
-  return settings?.ch_airlockjoin ?? null;
+  return resolveEnabledLogChannelId(settings, 'ch_airlockjoin');
 }
 
 async function getLeaveChannelId(guildId) {
   const settings = await getGuildSettings(guildId);
-  return settings?.ch_airlockleave ?? null;
+  return resolveEnabledLogChannelId(settings, 'ch_airlockleave');
 }
 
 async function isOpenAIEnabled(guildId) {
@@ -1209,6 +1410,14 @@ module.exports = {
 
   updateGuildSetting,
   getGuildSettings,
+  isBotEnabled,
+  isLevelingEnabled,
+  isEconomyEnabled,
+  isRoleMenusEnabled,
+  getBotTimezone,
+  isGuildCommandEnabled,
+  setGuildCommandEnabled,
+  syncCommandRegistryFromClient,
   setRolePermissions,
   setGuildPlanTier,
   getGuildPlanTier,
@@ -1218,6 +1427,7 @@ module.exports = {
   getLogChannelId,
   setLogChannelId,
   getVoiceLogChannelId,
+  resolveEnabledLogChannelId,
   getJoinChannelId,
   getLeaveChannelId,
 

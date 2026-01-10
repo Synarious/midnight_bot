@@ -1,4 +1,37 @@
 const { Events, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const database = require('../../data/database');
+
+let schemaEnsured = false;
+
+async function ensureDeletedMessagesSchema() {
+    if (schemaEnsured) return;
+    schemaEnsured = true;
+
+    try {
+        await database.query(
+            `
+            CREATE TABLE IF NOT EXISTS deleted_messages (
+                id BIGSERIAL PRIMARY KEY,
+                guild_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                content TEXT,
+                deleted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        `,
+            [],
+            { context: 'ensureDeletedMessagesSchema' }
+        );
+
+        await database.query(
+            'CREATE INDEX IF NOT EXISTS idx_deleted_messages_guild_user_time ON deleted_messages (guild_id, user_id, deleted_at DESC)',
+            [],
+            { context: 'ensureDeletedMessagesSchema:index' }
+        );
+    } catch (error) {
+        // Fail-open: logging should not crash the bot
+        console.error('[sl_messageDelete] Failed to ensure deleted_messages schema:', error);
+    }
+}
 
 module.exports = {
     name: Events.MessageDelete,
@@ -7,7 +40,37 @@ module.exports = {
         // Ignore messages from bots
         if (message.author?.bot) return;
 
-        const logChannelId = "798324364301959169";
+        if (!message.guild) return;
+
+        await ensureDeletedMessagesSchema();
+
+        // Persist deleted content for /deleted lookups (best-effort)
+        if (message.author?.id) {
+            try {
+                await database.query(
+                    `
+                    INSERT INTO deleted_messages (guild_id, user_id, content, deleted_at)
+                    VALUES ($1, $2, $3, NOW())
+                `,
+                    [message.guild.id, message.author.id, message.content || null],
+                    { rateKey: message.guild.id, context: 'logDeletedMessage' }
+                );
+            } catch (error) {
+                console.error('[sl_messageDelete] Failed to store deleted message:', error);
+            }
+        }
+
+        // Send log embed only if configured
+        let logChannelId = null;
+        try {
+            const settings = await database.getGuildSettings(message.guild.id);
+            logChannelId = database.resolveEnabledLogChannelId(settings, 'ch_deletedmessages');
+        } catch {
+            // ignore
+        }
+
+        if (!logChannelId) return;
+
         const logChannel = message.guild.channels.cache.get(logChannelId);
         if (!logChannel) return;
 

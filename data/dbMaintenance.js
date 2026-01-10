@@ -34,14 +34,29 @@ CREATE TABLE IF NOT EXISTS guild_settings (
   ban_immuneRoles TEXT DEFAULT '[]',
   ban_immuneUserID TEXT DEFAULT '[]',
   ch_actionLog TEXT,
+  enable_ch_actionLog BOOLEAN DEFAULT TRUE,
   ch_kickbanLog TEXT,
+  enable_ch_kickbanLog BOOLEAN DEFAULT TRUE,
   ch_auditLog TEXT,
+  enable_ch_auditLog BOOLEAN DEFAULT TRUE,
   ch_airlockJoin TEXT,
+  enable_ch_airlockJoin BOOLEAN DEFAULT TRUE,
   ch_airlockLeave TEXT,
+  enable_ch_airlockLeave BOOLEAN DEFAULT TRUE,
   ch_deletedMessages TEXT,
+  enable_ch_deletedMessages BOOLEAN DEFAULT TRUE,
   ch_editedMessages TEXT,
+  enable_ch_editedMessages BOOLEAN DEFAULT TRUE,
   ch_automod_AI TEXT,
+  enable_ch_automod_AI BOOLEAN DEFAULT TRUE,
   ch_voiceLog TEXT,
+  enable_ch_voiceLog BOOLEAN DEFAULT TRUE,
+  ch_inviteLog TEXT,
+  enable_ch_inviteLog BOOLEAN DEFAULT TRUE,
+  ch_permanentInvites TEXT,
+  enable_ch_permanentInvites BOOLEAN DEFAULT TRUE,
+  ch_memberJoin TEXT,
+  enable_ch_memberJoin BOOLEAN DEFAULT TRUE,
   ch_categoryIgnoreAutomod TEXT DEFAULT '[]',
   ch_channelIgnoreAutomod TEXT DEFAULT '[]'
 );
@@ -173,6 +188,20 @@ async function runDBMaintenance() {
     await checkAndAddColumn(client, 'guild_settings', 'ch_inviteLog', 'TEXT');
     await checkAndAddColumn(client, 'guild_settings', 'ch_permanentInvites', 'TEXT');
     await checkAndAddColumn(client, 'guild_settings', 'ch_memberJoin', 'TEXT');
+
+    // Logging enable flags (separate from channel selection)
+    await checkAndAddColumn(client, 'guild_settings', 'enable_ch_actionLog', 'BOOLEAN DEFAULT TRUE');
+    await checkAndAddColumn(client, 'guild_settings', 'enable_ch_kickbanLog', 'BOOLEAN DEFAULT TRUE');
+    await checkAndAddColumn(client, 'guild_settings', 'enable_ch_auditLog', 'BOOLEAN DEFAULT TRUE');
+    await checkAndAddColumn(client, 'guild_settings', 'enable_ch_airlockJoin', 'BOOLEAN DEFAULT TRUE');
+    await checkAndAddColumn(client, 'guild_settings', 'enable_ch_airlockLeave', 'BOOLEAN DEFAULT TRUE');
+    await checkAndAddColumn(client, 'guild_settings', 'enable_ch_deletedMessages', 'BOOLEAN DEFAULT TRUE');
+    await checkAndAddColumn(client, 'guild_settings', 'enable_ch_editedMessages', 'BOOLEAN DEFAULT TRUE');
+    await checkAndAddColumn(client, 'guild_settings', 'enable_ch_automod_AI', 'BOOLEAN DEFAULT TRUE');
+    await checkAndAddColumn(client, 'guild_settings', 'enable_ch_voiceLog', 'BOOLEAN DEFAULT TRUE');
+    await checkAndAddColumn(client, 'guild_settings', 'enable_ch_inviteLog', 'BOOLEAN DEFAULT TRUE');
+    await checkAndAddColumn(client, 'guild_settings', 'enable_ch_permanentInvites', 'BOOLEAN DEFAULT TRUE');
+    await checkAndAddColumn(client, 'guild_settings', 'enable_ch_memberJoin', 'BOOLEAN DEFAULT TRUE');
 
     // Add 5-tier permission system columns
     await checkAndAddColumn(client, 'guild_settings', 'roles_super_admin', 'TEXT DEFAULT \'[]\'');

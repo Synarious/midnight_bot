@@ -64,7 +64,79 @@ async function ensureOnboardingSchema() {
     );
 }
 
+async function ensureDashboardSchema() {
+    // Keep guild_settings and command tables compatible for dashboard features.
+    await pool.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS bot_timezone TEXT DEFAULT 'UTC'");
+    await pool.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS plan_tier TEXT DEFAULT 'non_premium'");
+    await pool.query('ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS enable_leveling BOOLEAN DEFAULT TRUE');
+    await pool.query('ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS enable_economy BOOLEAN DEFAULT TRUE');
+    await pool.query('ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS enable_role_menus BOOLEAN DEFAULT TRUE');
+    await pool.query('ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS auto_role_enabled BOOLEAN DEFAULT FALSE');
+    await pool.query('ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS auto_role_id TEXT');
+
+    await pool.query('ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS ch_inviteLog TEXT');
+    await pool.query('ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS ch_permanentInvites TEXT');
+    await pool.query('ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS ch_memberJoin TEXT');
+
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS command_registry (
+            command_name TEXT PRIMARY KEY,
+            category TEXT,
+            has_slash BOOLEAN DEFAULT FALSE,
+            has_prefix BOOLEAN DEFAULT FALSE,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+    `);
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS guild_command_settings (
+            guild_id TEXT NOT NULL,
+            command_name TEXT NOT NULL,
+            enabled BOOLEAN NOT NULL DEFAULT TRUE,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            PRIMARY KEY (guild_id, command_name)
+        )
+    `);
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_guild_command_settings_guild ON guild_command_settings (guild_id)');
+}
+
 // ==================== DATABASE HELPERS ====================
+
+async function getGuildSettings(guildId) {
+    const result = await pool.query('SELECT * FROM guild_settings WHERE guild_id = $1', [guildId]);
+    if (result.rows.length > 0) return result.rows[0];
+
+    await pool.query(
+        'INSERT INTO guild_settings (guild_id) VALUES ($1) ON CONFLICT (guild_id) DO NOTHING',
+        [guildId]
+    );
+
+
+    // Logging ignore lists (some DBs may be missing these)
+    await pool.query(`
+        ALTER TABLE guild_settings
+            ADD COLUMN IF NOT EXISTS ch_categoryIgnoreAutomod TEXT[] DEFAULT '{}',
+            ADD COLUMN IF NOT EXISTS ch_channelIgnoreAutomod TEXT[] DEFAULT '{}'
+    `);
+    const created = await pool.query('SELECT * FROM guild_settings WHERE guild_id = $1', [guildId]);
+    return created.rows[0] || null;
+}
+
+async function updateGuildSetting(guildId, key, value) {
+    // Key is whitelisted at the route layer. Keep this helper strict about injection.
+    if (!/^[a-zA-Z0-9_]+$/.test(String(key))) {
+        throw new Error('Invalid setting key');
+    }
+
+    await pool.query(
+        `
+        INSERT INTO guild_settings (guild_id, ${key})
+        VALUES ($1, $2)
+        ON CONFLICT (guild_id)
+        DO UPDATE SET ${key} = EXCLUDED.${key}
+    `,
+        [guildId, value]
+    );
+}
 
 // Password hashing using scrypt
 async function hashPassword(password) {
@@ -872,10 +944,37 @@ app.patch('/api/guilds/:guildId/settings', requireAuth, async (req, res) => {
         
         // Whitelist allowed settings keys to prevent arbitrary column updates
         const allowedKeys = new Set([
-            'cmd_prefix', 'bot_enabled', 'enable_automod', 'enable_openAI',
-            'mute_roleID', 'ch_actionLog', 'ch_kickbanLog', 'ch_auditLog',
+            // General
+            'cmd_prefix', 'bot_enabled', 'bot_timezone', 'plan_tier',
+            // Modules
+            'enable_automod', 'enable_openAI', 'enable_leveling', 'enable_economy', 'enable_role_menus',
+            'auto_role_enabled', 'auto_role_id',
+            // Roles
+            'roles_super_admin', 'roles_admin', 'roles_mod', 'roles_jr_mod', 'roles_helper', 'roles_trust', 'roles_untrusted',
+            // Moderation
+            'mute_roleID', 'mute_rolesRemoved', 'mute_immuneUserIDs',
+            'kick_immuneRoles', 'kick_immuneUserID',
+            'ban_immuneRoles', 'ban_immuneUserID',
+            // Logging channels
+            'ch_actionLog', 'ch_kickbanLog', 'ch_auditLog',
             'ch_airlockJoin', 'ch_airlockLeave', 'ch_deletedMessages',
-            'ch_editedMessages', 'ch_automod_AI', 'ch_voiceLog'
+            'ch_editedMessages', 'ch_automod_AI', 'ch_voiceLog',
+            'ch_inviteLog', 'ch_permanentInvites', 'ch_memberJoin',
+            // Logging enable flags (separate from channel selection)
+            'enable_ch_actionLog', 'enable_ch_kickbanLog', 'enable_ch_auditLog',
+            'enable_ch_airlockJoin', 'enable_ch_airlockLeave', 'enable_ch_deletedMessages',
+            'enable_ch_editedMessages', 'enable_ch_automod_AI', 'enable_ch_voiceLog',
+            'enable_ch_inviteLog', 'enable_ch_permanentInvites', 'enable_ch_memberJoin',
+            // Automod ignore lists
+            'ch_categoryIgnoreAutomod', 'ch_channelIgnoreAutomod'
+        ]);
+
+        const jsonArrayKeys = new Set([
+            'roles_super_admin', 'roles_admin', 'roles_mod', 'roles_jr_mod', 'roles_helper', 'roles_trust', 'roles_untrusted',
+            'mute_rolesRemoved', 'mute_immuneUserIDs',
+            'kick_immuneRoles', 'kick_immuneUserID',
+            'ban_immuneRoles', 'ban_immuneUserID',
+            'ch_categoryIgnoreAutomod', 'ch_channelIgnoreAutomod'
         ]);
         
         // Validate each update key and value
@@ -883,24 +982,83 @@ app.patch('/api/guilds/:guildId/settings', requireAuth, async (req, res) => {
             if (!allowedKeys.has(key)) {
                 return res.status(400).json({ error: `Invalid setting key: ${key}` });
             }
+
+            // Allow null to clear settings.
+            // For array-backed settings, treat null as an empty array.
+            if (value === null) {
+                const normalizedValue = jsonArrayKeys.has(key) ? [] : null;
+                await updateGuildSetting(guildId, key, normalizedValue);
+                continue;
+            }
             
+            // Normalize JSON array inputs
+            let normalizedValue = value;
+            if (jsonArrayKeys.has(key)) {
+                if (Array.isArray(value)) {
+                    // Validate snowflake-like items if they look like IDs
+                    const normalizedArray = [];
+                    for (const item of value) {
+                        if (typeof item !== 'string') {
+                            return res.status(400).json({ error: `Invalid array value for ${key}` });
+                        }
+                        const trimmed = item.trim();
+                        if (trimmed && !isValidSnowflake(trimmed)) {
+                            return res.status(400).json({ error: `Invalid Discord ID in ${key}` });
+                        }
+                        if (trimmed) normalizedArray.push(trimmed);
+                    }
+                    normalizedValue = normalizedArray;
+                } else if (typeof value === 'string') {
+                    // Accept raw JSON string
+                    try {
+                        const parsed = JSON.parse(value);
+                        if (!Array.isArray(parsed)) {
+                            return res.status(400).json({ error: `${key} must be an array` });
+                        }
+
+                        const normalizedArray = [];
+                        for (const item of parsed) {
+                            if (typeof item !== 'string') {
+                                return res.status(400).json({ error: `Invalid array value for ${key}` });
+                            }
+                            const trimmed = item.trim();
+                            if (trimmed && !isValidSnowflake(trimmed)) {
+                                return res.status(400).json({ error: `Invalid Discord ID in ${key}` });
+                            }
+                            if (trimmed) normalizedArray.push(trimmed);
+                        }
+
+                        normalizedValue = normalizedArray;
+                    } catch {
+                        return res.status(400).json({ error: `${key} must be valid JSON array` });
+                    }
+                } else {
+                    return res.status(400).json({ error: `${key} must be an array` });
+                }
+            }
+
             // Basic type validation
-            if (typeof value === 'string') {
+            if (typeof normalizedValue === 'string') {
                 // Validate Discord IDs or channel/role prefixes
-                if ((key.startsWith('ch_') || key.endsWith('_role') || key.endsWith('roleID')) && value.trim()) {
-                    if (!isValidSnowflake(value)) {
+                if ((key.startsWith('ch_') || key.endsWith('_role') || key.endsWith('roleID') || key.endsWith('_id')) && normalizedValue.trim()) {
+                    if (!isValidSnowflake(normalizedValue)) {
                         return res.status(400).json({ error: `Invalid Discord ID format for ${key}` });
                     }
                 }
                 // Limit prefix length
-                if (key === 'cmd_prefix' && value.length > 10) {
+                if (key === 'cmd_prefix' && normalizedValue.length > 10) {
                     return res.status(400).json({ error: 'Command prefix too long (max 10 characters)' });
                 }
-            } else if (typeof value !== 'boolean' && typeof value !== 'number') {
+                if (key === 'bot_timezone' && normalizedValue.length > 64) {
+                    return res.status(400).json({ error: 'Timezone too long' });
+                }
+            } else if (jsonArrayKeys.has(key) && Array.isArray(normalizedValue)) {
+                // OK
+            } else if (typeof normalizedValue !== 'boolean' && typeof normalizedValue !== 'number') {
                 return res.status(400).json({ error: `Invalid value type for ${key}` });
             }
             
-            await updateGuildSetting(guildId, key, value);
+            await updateGuildSetting(guildId, key, normalizedValue);
         }
         
         const settings = await getGuildSettings(guildId);
@@ -908,6 +1066,101 @@ app.patch('/api/guilds/:guildId/settings', requireAuth, async (req, res) => {
     } catch (error) {
         console.error('[Dashboard] Update guild settings error:', { requestId: req.requestId, error });
         res.status(500).json({ error: 'Failed to update guild settings', requestId: req.requestId });
+    }
+});
+
+// ==================== COMMAND TOGGLES ====================
+
+app.get('/api/guilds/:guildId/commands', requireAuth, async (req, res) => {
+    try {
+        const { guildId } = req.params;
+
+        const result = await pool.query(
+            `
+            SELECT
+                cr.command_name,
+                cr.category,
+                cr.has_slash,
+                cr.has_prefix,
+                COALESCE(gcs.enabled, TRUE) AS enabled
+            FROM command_registry cr
+            LEFT JOIN guild_command_settings gcs
+                ON gcs.guild_id = $1
+               AND gcs.command_name = cr.command_name
+            ORDER BY COALESCE(cr.category, ''), cr.command_name
+        `,
+            [guildId]
+        );
+
+        res.json({ commands: result.rows });
+    } catch (error) {
+        console.error('[Dashboard] Get commands error:', { requestId: req.requestId, error });
+        res.status(500).json({ error: 'Failed to get commands', requestId: req.requestId });
+    }
+});
+
+app.put('/api/guilds/:guildId/commands/:commandName', requireAuth, async (req, res) => {
+    try {
+        const { guildId, commandName } = req.params;
+        const { enabled } = req.body || {};
+
+        if (typeof enabled !== 'boolean') {
+            return res.status(400).json({ error: 'enabled must be boolean' });
+        }
+
+        // Validate command exists
+        const exists = await pool.query('SELECT 1 FROM command_registry WHERE command_name = $1', [commandName]);
+        if (exists.rowCount === 0) {
+            return res.status(404).json({ error: 'Unknown command' });
+        }
+
+        await pool.query(
+            `
+            INSERT INTO guild_command_settings (guild_id, command_name, enabled)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (guild_id, command_name)
+            DO UPDATE SET enabled = EXCLUDED.enabled, updated_at = NOW()
+        `,
+            [guildId, commandName, enabled]
+        );
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('[Dashboard] Update command toggle error:', { requestId: req.requestId, error });
+        res.status(500).json({ error: 'Failed to update command', requestId: req.requestId });
+    }
+});
+
+// ==================== MODERATION DATA ====================
+
+app.get('/api/guilds/:guildId/moderation/muted', requireAuth, async (req, res) => {
+    try {
+        const { guildId } = req.params;
+        const limit = Math.min(Math.max(parseInt(req.query.limit) || 25, 1), 100);
+
+        const result = await pool.query(
+            `
+            SELECT
+                mute_id,
+                user_id,
+                reason,
+                actioned_by,
+                recorded_at,
+                expires_at,
+                active
+            FROM muted_users
+            WHERE guild_id = $1
+              AND active = TRUE
+            ORDER BY recorded_at DESC
+            LIMIT $2
+        `,
+            [guildId, limit]
+        );
+
+        res.json({ muted: result.rows });
+    } catch (error) {
+        console.error('[Dashboard] Get muted users error:', { requestId: req.requestId, error });
+        res.status(500).json({ error: 'Failed to get muted users', requestId: req.requestId });
     }
 });
 
@@ -971,6 +1224,16 @@ app.get('/api/guilds/:guildId/stats', requireAuth, async (req, res) => {
               AND created_at > NOW() - make_interval(days => $2)
         `, [guildId, days]).catch(() => ({ rows: [{ count: 0 }] }));
         
+        // Resolve guild timezone for graph label formatting
+        const settings = await getGuildSettings(guildId);
+        const botTimezone = settings?.bot_timezone || 'UTC';
+        let labelFormatter;
+        try {
+            labelFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: botTimezone });
+        } catch {
+            labelFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+        }
+
         // Build activity chart data
         const labels = [];
         const joins = [];
@@ -981,7 +1244,7 @@ app.get('/api/guilds/:guildId/stats', requireAuth, async (req, res) => {
             const date = new Date();
             date.setDate(date.getDate() - i);
             const dateStr = date.toISOString().split('T')[0];
-            labels.push(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+            labels.push(labelFormatter.format(date));
             
             const dayData = activityResult.rows.filter(r => 
                 r.date && r.date.toISOString().split('T')[0] === dateStr
@@ -1641,6 +1904,7 @@ app.use((err, req, res, next) => {
 
 async function startDashboard() {
     try {
+        await ensureDashboardSchema();
         await ensureOnboardingSchema();
 
         // Initialize default admin user if none exists

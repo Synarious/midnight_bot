@@ -5,6 +5,13 @@ CREATE TABLE IF NOT EXISTS guild_settings (
     guild_id TEXT PRIMARY KEY,
     cmd_prefix TEXT DEFAULT '!',
     bot_enabled BOOLEAN DEFAULT TRUE,
+    bot_timezone TEXT DEFAULT 'UTC',
+    plan_tier TEXT DEFAULT 'non_premium',
+    enable_leveling BOOLEAN DEFAULT TRUE,
+    enable_economy BOOLEAN DEFAULT TRUE,
+    enable_role_menus BOOLEAN DEFAULT TRUE,
+    auto_role_enabled BOOLEAN DEFAULT FALSE,
+    auto_role_id TEXT,
     roles_super_admin TEXT DEFAULT '[]',
     roles_admin TEXT DEFAULT '[]',
     roles_mod TEXT DEFAULT '[]',
@@ -22,17 +29,66 @@ CREATE TABLE IF NOT EXISTS guild_settings (
     ban_immuneRoles TEXT DEFAULT '[]',
     ban_immuneUserID TEXT DEFAULT '[]',
     ch_actionLog TEXT,
+    enable_ch_actionLog BOOLEAN DEFAULT TRUE,
     ch_kickbanLog TEXT,
+    enable_ch_kickbanLog BOOLEAN DEFAULT TRUE,
     ch_auditLog TEXT,
+    enable_ch_auditLog BOOLEAN DEFAULT TRUE,
     ch_airlockJoin TEXT,
+    enable_ch_airlockJoin BOOLEAN DEFAULT TRUE,
     ch_airlockLeave TEXT,
+    enable_ch_airlockLeave BOOLEAN DEFAULT TRUE,
     ch_deletedMessages TEXT,
+    enable_ch_deletedMessages BOOLEAN DEFAULT TRUE,
     ch_editedMessages TEXT,
+    enable_ch_editedMessages BOOLEAN DEFAULT TRUE,
     ch_automod_AI TEXT,
+    enable_ch_automod_AI BOOLEAN DEFAULT TRUE,
     ch_voiceLog TEXT,
+    enable_ch_voiceLog BOOLEAN DEFAULT TRUE,
+    ch_inviteLog TEXT,
+    enable_ch_inviteLog BOOLEAN DEFAULT TRUE,
+    ch_permanentInvites TEXT,
+    enable_ch_permanentInvites BOOLEAN DEFAULT TRUE,
+    ch_memberJoin TEXT,
+    enable_ch_memberJoin BOOLEAN DEFAULT TRUE,
     ch_categoryIgnoreAutomod TEXT DEFAULT '[]',
     ch_channelIgnoreAutomod TEXT DEFAULT '[]'
 );
+
+-- ==================== COMMAND REGISTRY + PER-GUILD COMMAND TOGGLES ====================
+
+CREATE TABLE IF NOT EXISTS command_registry (
+    command_name TEXT PRIMARY KEY,
+    category TEXT,
+    has_slash BOOLEAN DEFAULT FALSE,
+    has_prefix BOOLEAN DEFAULT FALSE,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS guild_command_settings (
+    guild_id TEXT NOT NULL,
+    command_name TEXT NOT NULL,
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (guild_id, command_name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_guild_command_settings_guild
+    ON guild_command_settings (guild_id);
+
+-- ==================== DELETED MESSAGE AUDIT (FOR /deleted) ====================
+
+CREATE TABLE IF NOT EXISTS deleted_messages (
+    id BIGSERIAL PRIMARY KEY,
+    guild_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    content TEXT,
+    deleted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_deleted_messages_guild_user_time
+    ON deleted_messages (guild_id, user_id, deleted_at DESC);
 
 CREATE TABLE IF NOT EXISTS filtered_messages (
     fmsg_ID SERIAL PRIMARY KEY,

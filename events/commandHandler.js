@@ -13,6 +13,14 @@ module.exports = {
 
     const guildId = message.guild.id;
 
+    // Global kill-switch per guild
+    try {
+      const enabled = await db.isBotEnabled(guildId);
+      if (!enabled) return;
+    } catch (e) {
+      // Fail-open: if DB is down, don't brick the bot.
+    }
+
     // Get prefix from PostgreSQL
     let prefix = '!'; // Default prefix
     try {
@@ -36,6 +44,31 @@ module.exports = {
     const command = client.commands.get(commandName);
 
     if (!command) return;
+
+    // Per-command enable/disable toggle (dashboard)
+    try {
+      const enabled = await db.isGuildCommandEnabled(guildId, commandName);
+      if (!enabled) {
+        await message.reply('⚠️ This command is disabled on this server.');
+        return;
+      }
+    } catch (e) {
+      // fail-open
+    }
+
+    // Module-level gating for economy commands
+    try {
+      const category = (command.category || '').toLowerCase();
+      if (category === 'eco' || category.startsWith('eco/')) {
+        const econEnabled = await db.isEconomyEnabled(guildId);
+        if (!econEnabled) {
+          await message.reply('⚠️ The Economy module is disabled on this server.');
+          return;
+        }
+      }
+    } catch (e) {
+      // fail-open
+    }
 
     // Get rate limit for this command (check if underlying slash command has rateLimit)
     let limitMs = DEFAULT_PREFIX_RATE_LIMIT;
@@ -259,6 +292,7 @@ module.exports = {
             if (client.commands.has(command.name)) {
               stats.warnings.push(`Duplicate legacy command: ${command.name}`);
             } else {
+              try { command.category = categoryPath || ''; } catch (_) {}
               client.commands.set(command.name, command);
               stats.legacyCommands.push({ name: command.name, category: categoryPath });
             }
@@ -279,6 +313,7 @@ module.exports = {
             }
 
             client.slashCommands.set(name, command);
+            try { command.category = categoryPath || ''; } catch (_) {}
             stats.slashCommands.push({ name, category: categoryPath, hasRateLimit: !!command.rateLimit });
 
             // If there isn't an existing legacy mapping, create an adapter so prefix users can run the same command
@@ -286,6 +321,7 @@ module.exports = {
               client.commands.set(name, {
                 name,
                 description: command.data.description || '',
+                category: categoryPath || '',
                 async execute(message, args, clientRef) {
                   const pseudo = buildPseudoInteraction(message, args, clientRef);
                   // Some commands accept (interaction) only, others (interaction, args)
@@ -368,5 +404,7 @@ module.exports = {
     
     console.log('\n' + '═'.repeat(45));
     console.log('✓ Command loading complete!\n');
+
+    return stats;
   }
 };

@@ -27,6 +27,11 @@ const levelingSystem = {
      */
     async awardMessageXP(guildId, userId, channelId) {
         try {
+            if (typeof pool.isLevelingEnabled === 'function') {
+                const enabled = await pool.isLevelingEnabled(guildId);
+                if (!enabled) return { awarded: false, reason: 'disabled' };
+            }
+
             // Get guild config
             const config = await this.getGuildConfig(guildId);
             
@@ -65,6 +70,11 @@ const levelingSystem = {
      */
     async awardVoiceXP(guildId, userId, channelId, minutes) {
         try {
+            if (typeof pool.isLevelingEnabled === 'function') {
+                const enabled = await pool.isLevelingEnabled(guildId);
+                if (!enabled) return { awarded: false, reason: 'disabled' };
+            }
+
             const config = await this.getGuildConfig(guildId);
             
             // Check if channel is excluded

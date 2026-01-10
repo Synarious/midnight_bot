@@ -1,5 +1,6 @@
 const { Events, MessageFlags } = require('discord.js');
 const rateLimiter = require('../utils/rateLimiter');
+const db = require('../data/database.js');
 
 // Import feature handlers
 const onboarding = require('../features/onboarding');
@@ -54,6 +55,21 @@ module.exports = {
         interaction.client.rateLimitActiveUsers = rateLimiter.getActiveUserCount();
         
         try {
+            const guildId = interaction.guild?.id;
+
+            // Global kill-switch per guild
+            if (guildId) {
+                try {
+                    const enabled = await db.isBotEnabled(guildId);
+                    if (!enabled) {
+                        // Ignore everything silently when disabled.
+                        return;
+                    }
+                } catch (e) {
+                    // fail-open
+                }
+            }
+
             // Handle slash commands
             if (interaction.isChatInputCommand()) {
                 const command = interaction.client.slashCommands.get(interaction.commandName);
@@ -78,6 +94,41 @@ module.exports = {
 
                 // Attach DB to interaction
                 interaction.client.botStorage = require('../data/database.js');
+
+                // Per-command enable/disable toggle (dashboard)
+                if (guildId) {
+                    try {
+                        const allowed = await db.isGuildCommandEnabled(guildId, interaction.commandName);
+                        if (!allowed) {
+                            await interaction.reply({
+                                content: '⚠️ This command is disabled on this server.',
+                                flags: MessageFlags.Ephemeral
+                            }).catch(() => {});
+                            return;
+                        }
+                    } catch (e) {
+                        // fail-open
+                    }
+                }
+
+                // Module-level gating for economy commands
+                if (guildId) {
+                    try {
+                        const category = (command.category || '').toLowerCase();
+                        if (category === 'eco' || category.startsWith('eco/')) {
+                            const econEnabled = await db.isEconomyEnabled(guildId);
+                            if (!econEnabled) {
+                                await interaction.reply({
+                                    content: '⚠️ The Economy module is disabled on this server.',
+                                    flags: MessageFlags.Ephemeral
+                                }).catch(() => {});
+                                return;
+                            }
+                        }
+                    } catch (e) {
+                        // fail-open
+                    }
+                }
                 
                 console.log(`[interactionCreate] Executing command: ${interaction.commandName} | User: ${interaction.user.tag} (${interaction.user.id}) | Guild: ${interaction.guild?.id || 'DM'}`);
                 

@@ -1,5 +1,5 @@
 const { EmbedBuilder, AuditLogEvent } = require('discord.js');
-const { getGuildSettings, pool } = require('../../data/database.js');
+const { getGuildSettings, pool, resolveEnabledLogChannelId } = require('../../data/database.js');
 
 /**
  * Invite tracking module that monitors invite creation/usage and logs to database
@@ -87,7 +87,7 @@ class InviteTracker {
                 .setFooter({ text: `Invite: ${invite.code}` });
 
             // Send to invite log channel
-            const inviteLogChannelId = settings.ch_inviteLog;
+            const inviteLogChannelId = resolveEnabledLogChannelId(settings, 'ch_invitelog');
             if (inviteLogChannelId) {
                 const logChannel = await guild.channels.fetch(inviteLogChannelId).catch(() => null);
                 if (logChannel) {
@@ -99,7 +99,7 @@ class InviteTracker {
 
             // Check for never-expiring invites
             if (maxAge === 0) {
-                const permanentInviteChannelId = settings.ch_permanentInvites;
+                const permanentInviteChannelId = resolveEnabledLogChannelId(settings, 'ch_permanentinvites');
                 if (permanentInviteChannelId && permanentInviteChannelId !== inviteLogChannelId) {
                     const permanentChannel = await guild.channels.fetch(permanentInviteChannelId).catch(() => null);
                     if (permanentChannel) {
@@ -247,7 +247,8 @@ class InviteTracker {
         try {
             const { guild, user } = member;
             const settings = await getGuildSettings(guild.id);
-            if (!settings || !settings.ch_memberJoin) return;
+            const logChannelId = resolveEnabledLogChannelId(settings, 'ch_memberjoin');
+            if (!logChannelId) return;
 
             const embed = new EmbedBuilder()
                 .setTitle('👋 Member Joined')
@@ -264,7 +265,7 @@ class InviteTracker {
                 .setTimestamp()
                 .setFooter({ text: `User ID: ${user.id}` });
 
-            const logChannel = await guild.channels.fetch(settings.ch_memberJoin).catch(() => null);
+            const logChannel = await guild.channels.fetch(logChannelId).catch(() => null);
             if (logChannel) {
                 await logChannel.send({ embeds: [embed] }).catch(err => {
                     console.error(`[InviteTracker] Failed to send join log:`, err);
