@@ -45,8 +45,7 @@ services:
     build:
       context: ./dashboard
       dockerfile: Dockerfile
-    # Override command to install deps and run in dev mode with hot reload
-    command: sh -c "npm install && npm run docker:dev"
+    # Run the dashboard server from the built image (serves ./dist on :3002)
     restart: always
     depends_on:
       db:
@@ -54,14 +53,10 @@ services:
     ports:
       # Dashboard accessible ONLY on localhost (127.0.0.1:3002) - not exposed to network
       - "127.0.0.1:3002:3002"
-      # Vite HMR Port
-      - "5173:5173"
-    volumes:
-      - ./dashboard:/usr/src/app
-      - /usr/src/app/node_modules
     environment:
       # Dashboard port
       PORT: 3002
+      NODE_ENV: production
       # Session secret for cookie signing
       SESSION_SECRET: ${SESSION_SECRET:-change-me-in-production}
       # Admin password

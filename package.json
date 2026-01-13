@@ -7,7 +7,7 @@
     "deploy": "node deploy-commands.js",
     "start": "node index.js",
     "migrate": "node migrate.js",
-    "docker:dashboard:fresh": "docker compose up -d --build --pull always --force-recreate --renew-anon-volumes --remove-orphans dashboard"
+    "docker:dashboard:fresh": "docker compose build --pull --no-cache dashboard && docker compose up -d --force-recreate --remove-orphans dashboard"
   },
   "repository": {
     "type": "git",

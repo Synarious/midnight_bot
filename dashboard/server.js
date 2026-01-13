@@ -1739,10 +1739,22 @@ app.get('/api/discord/guild/:guildId/bot-member', requireAuth, async (req, res) 
 
     try {
         if (process.env.DISCORD_TOKEN) {
-            const apiRes = await axios.get(`https://discord.com/api/v10/guilds/${guildId}/members/@me`, {
+            // NOTE: /guilds/{guildId}/members/@me is not valid for Bot tokens.
+            // For bots, fetch the bot user id via /users/@me, then query the member by id.
+            const meRes = await axios.get('https://discord.com/api/v10/users/@me', {
                 headers: { Authorization: `Bot ${process.env.DISCORD_TOKEN}` }
             });
-            return res.json(apiRes.data);
+
+            const botUserId = meRes?.data?.id;
+            if (!isValidSnowflake(String(botUserId))) {
+                return res.status(500).json({ error: 'Failed to determine bot user id' });
+            }
+
+            const memberRes = await axios.get(
+                `https://discord.com/api/v10/guilds/${guildId}/members/${botUserId}`,
+                { headers: { Authorization: `Bot ${process.env.DISCORD_TOKEN}` } }
+            );
+            return res.json(memberRes.data);
         }
         res.status(503).json({ error: 'Discord token not available' });
     } catch (error) {

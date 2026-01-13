@@ -63,7 +63,7 @@ export const GuildProvider = ({ children }) => {
   };
 
   const getBotHighestRolePosition = () => {
-    if (!botMember || !botMember.roles || !roles.length) return -1;
+    if (!botMember || !botMember.roles || !roles.length) return null;
     const botRoleIds = botMember.roles;
     let maxPos = -1;
     for (const roleId of botRoleIds) {
@@ -72,7 +72,7 @@ export const GuildProvider = ({ children }) => {
         maxPos = role.position;
       }
     }
-    return maxPos;
+    return maxPos >= 0 ? maxPos : null;
   };
 
   return (

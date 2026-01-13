@@ -14,7 +14,10 @@ function RoleSelector({ label, value, onChange, options, multiple = true, disabl
     };
 
     const isRoleHigher = (rolePosition) => {
+        // If we can't determine the bot's highest role position, don't disable options.
         if (botRolePosition === undefined || botRolePosition === null) return false;
+        if (typeof botRolePosition !== 'number' || botRolePosition < 0) return false;
+        if (rolePosition === undefined || rolePosition === null) return false;
         return rolePosition >= botRolePosition;
     };
 
