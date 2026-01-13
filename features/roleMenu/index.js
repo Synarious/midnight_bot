@@ -94,7 +94,7 @@ function getCategoryRoleIds(category) {
  */
 function createRoleMenuEmbed() {
 	const embed = new EmbedBuilder()
-		.setTitle('🎭 Role Selection Menu')
+		.setTitle('🎭 Role Menu')
 		.setDescription('**Click the button below to open your personalized role menu!**\n\nYour current roles will be automatically selected.\n\n💎 = Requires Server Boost')
 		.setColor('#5865F2')
 		.setFooter({ text: 'Private menu • Auto-deletes after 2 minutes' })
@@ -173,14 +173,6 @@ async function handleButton(interaction) {
 		// fail-open
 	}
 
-    // Check if user is muted
-	if (isMuted(interaction.member)) {
-		return interaction.reply({
-			content: '❌ You cannot interact with the role menu while muted.',
-			ephemeral: true
-		});
-	}
-
     try {
         // Create personalized embed with user's current roles
 		const embed = createRoleMenuEmbed();
@@ -234,14 +226,6 @@ async function handleSelect(interaction) {
 		}
 	} catch (e) {
 		// fail-open
-	}
-
-    // Check if user is muted
-	if (isMuted(interaction.member)) {
-		return interaction.reply({
-			content: '❌ You cannot interact with the role menu while muted.',
-			ephemeral: true
-		});
 	}
 
     try {

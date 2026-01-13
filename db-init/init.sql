@@ -394,3 +394,84 @@ CREATE TABLE IF NOT EXISTS wow_guest_settings (
     button_label TEXT,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- ==================== LEVELING SYSTEM TABLES ====================
+
+CREATE TABLE IF NOT EXISTS member_leveling (
+    guild_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    msg_exp INTEGER DEFAULT 0,
+    voice_exp INTEGER DEFAULT 0,
+    level INTEGER DEFAULT 0,
+    last_msg_date TIMESTAMPTZ,
+    firstName TEXT,
+    lastName TEXT,
+    PRIMARY KEY (guild_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS guild_activity_config (
+    guild_id TEXT PRIMARY KEY,
+    rolling_period_days INTEGER DEFAULT 30,
+    anti_spam_level INTEGER DEFAULT 1,
+    exclude_muted BOOLEAN DEFAULT TRUE,
+    exclude_deafened BOOLEAN DEFAULT TRUE,
+    exclude_bots BOOLEAN DEFAULT TRUE,
+    excluded_message_channels TEXT[] DEFAULT '{}',
+    excluded_voice_channels TEXT[] DEFAULT '{}',
+    remove_previous_role BOOLEAN DEFAULT FALSE,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS leveling_roles (
+    guild_id TEXT,
+    role_id TEXT,
+    msg_exp_requirement INTEGER DEFAULT 0,
+    voice_exp_requirement INTEGER DEFAULT 0,
+    logic_operator TEXT DEFAULT 'OR', -- 'AND', 'OR'
+    rolling_period_days INTEGER DEFAULT 90,
+    position INTEGER DEFAULT 0,
+    PRIMARY KEY (guild_id, role_id)
+);
+
+-- ==================== MEMBER STATS TABLES ====================
+
+CREATE TABLE IF NOT EXISTS member_daily_stats (
+    id SERIAL PRIMARY KEY,
+    guild_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    stat_date DATE NOT NULL,
+    message_count INTEGER DEFAULT 0,
+    vc_minutes INTEGER DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(guild_id, user_id, stat_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_member_daily_stats_guild_date ON member_daily_stats(guild_id, stat_date);
+CREATE INDEX IF NOT EXISTS idx_member_daily_stats_user ON member_daily_stats(user_id);
+
+-- ==================== DISCORD CACHE TABLES ====================
+-- Used by dashboard to avoiding rapid API calls
+
+CREATE TABLE IF NOT EXISTS discord_channels (
+    guild_id TEXT NOT NULL,
+    channel_id TEXT NOT NULL,
+    name TEXT,
+    type INTEGER,
+    position INTEGER,
+    parent_id TEXT,
+    last_updated TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (guild_id, channel_id)
+);
+
+CREATE TABLE IF NOT EXISTS discord_roles (
+    guild_id TEXT NOT NULL,
+    role_id TEXT NOT NULL,
+    name TEXT,
+    color INTEGER,
+    position INTEGER,
+    permissions TEXT,
+    managed BOOLEAN,
+    last_updated TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (guild_id, role_id)
+);

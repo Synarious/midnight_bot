@@ -1,0 +1,855 @@
+dashboard-1  | [1]   file: 'analyze.c',
+dashboard-1  | [1]   line: '2515',
+dashboard-1  | [1]   routine: 'transformUpdateTargetList'
+dashboard-1  | [1] }
+db-1         | 2026-01-13 00:58:21.284 UTC [4477] ERROR:  column "last_updated" of relation "discord_roles" does not exist at character 432
+db-1         | 2026-01-13 00:58:21.284 UTC [4477] STATEMENT:  INSERT INTO discord_roles (role_id, guild_id, name, color, position, permissions, managed)
+db-1         |                                  VALUES ($1, $2, $3, $4, $5, $6, $7)
+db-1         |                                  ON CONFLICT (role_id) DO UPDATE SET
+db-1         |                                  name = EXCLUDED.name, color = EXCLUDED.color, position = EXCLUDED.position,
+db-1         |                                  permissions = EXCLUDED.permissions, managed = EXCLUDED.managed, last_updated = NOW()
+dashboard-1  | [1] Error upserting role during API fetch: error: column "last_updated" of relation "discord_roles" does not exist
+dashboard-1  | [1]     at /usr/src/app/node_modules/pg-pool/index.js:45:11
+dashboard-1  | [1]     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+dashboard-1  | [1]     at async /usr/src/app/server.js:1708:28 {
+dashboard-1  | [1]   length: 141,
+dashboard-1  | [1]   severity: 'ERROR',
+dashboard-1  | [1]   code: '42703',
+dashboard-1  | [1]   detail: undefined,
+dashboard-1  | [1]   hint: undefined,
+dashboard-1  | [1]   position: '432',
+dashboard-1  | [1]   internalPosition: undefined,
+dashboard-1  | [1]   internalQuery: undefined,
+dashboard-1  | [1]   where: undefined,
+dashboard-1  | [1]   schema: undefined,
+dashboard-1  | [1]   table: undefined,
+dashboard-1  | [1]   column: undefined,
+dashboard-1  | [1]   dataType: undefined,
+dashboard-1  | [1]   constraint: undefined,
+dashboard-1  | [1]   file: 'analyze.c',
+dashboard-1  | [1]   line: '2515',
+dashboard-1  | [1]   routine: 'transformUpdateTargetList'
+dashboard-1  | [1] }
+dashboard-1  | [1] Error upserting role during API fetch: error: column "last_updated" of relation "discord_roles" does not exist
+dashboard-1  | [1]     at /usr/src/app/node_modules/pg-pool/index.js:45:11
+dashboard-1  | [1]     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+dashboard-1  | [1]     at async /usr/src/app/server.js:1708:28 {
+dashboard-1  | [1]   length: 141,
+dashboard-1  | [1]   severity: 'ERROR',
+dashboard-1  | [1]   code: '42703',
+dashboard-1  | [1]   detail: undefined,
+dashboard-1  | [1]   hint: undefined,
+dashboard-1  | [1]   position: '432',
+dashboard-1  | [1]   internalPosition: undefined,
+dashboard-1  | [1]   internalQuery: undefined,
+db-1         | 2026-01-13 00:58:21.284 UTC [4478] ERROR:  column "last_updated" of relation "discord_roles" does not exist at character 432
+db-1         | 2026-01-13 00:58:21.284 UTC [4478] STATEMENT:  INSERT INTO discord_roles (role_id, guild_id, name, color, position, permissions, managed)
+db-1         |                                  VALUES ($1, $2, $3, $4, $5, $6, $7)
+db-1         |                                  ON CONFLICT (role_id) DO UPDATE SET
+db-1         |                                  name = EXCLUDED.name, color = EXCLUDED.color, position = EXCLUDED.position,
+db-1         |                                  permissions = EXCLUDED.permissions, managed = EXCLUDED.managed, last_updated = NOW()
+dashboard-1  | [1]   where: undefined,
+dashboard-1  | [1]   schema: undefined,
+dashboard-1  | [1]   table: undefined,
+dashboard-1  | [1]   column: undefined,
+dashboard-1  | [1]   dataType: undefined,
+dashboard-1  | [1]   constraint: undefined,
+dashboard-1  | [1]   file: 'analyze.c',
+dashboard-1  | [1]   line: '2515',
+dashboard-1  | [1]   routine: 'transformUpdateTargetList'
+dashboard-1  | [1] }
+db-1         | 2026-01-13 00:58:21.298 UTC [4480] ERROR:  column "last_updated" of relation "discord_roles" does not exist at character 432
+db-1         | 2026-01-13 00:58:21.298 UTC [4480] STATEMENT:  INSERT INTO discord_roles (role_id, guild_id, name, color, position, permissions, managed)
+db-1         |                                  VALUES ($1, $2, $3, $4, $5, $6, $7)
+db-1         |                                  ON CONFLICT (role_id) DO UPDATE SET
+db-1         |                                  name = EXCLUDED.name, color = EXCLUDED.color, position = EXCLUDED.position,
+db-1         |                                  permissions = EXCLUDED.permissions, managed = EXCLUDED.managed, last_updated = NOW()
+db-1         | 2026-01-13 00:58:21.299 UTC [4479] ERROR:  column "last_updated" of relation "discord_roles" does not exist at character 432
+db-1         | 2026-01-13 00:58:21.299 UTC [4479] STATEMENT:  INSERT INTO discord_roles (role_id, guild_id, name, color, position, permissions, managed)
+db-1         |                                  VALUES ($1, $2, $3, $4, $5, $6, $7)
+db-1         |                                  ON CONFLICT (role_id) DO UPDATE SET
+db-1         |                                  name = EXCLUDED.name, color = EXCLUDED.color, position = EXCLUDED.position,
+db-1         |                                  permissions = EXCLUDED.permissions, managed = EXCLUDED.managed, last_updated = NOW()
+dashboard-1  | [1] Error upserting role during API fetch: error: column "last_updated" of relation "discord_roles" does not exist
+dashboard-1  | [1]     at /usr/src/app/node_modules/pg-pool/index.js:45:11
+dashboard-1  | [1]     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+dashboard-1  | [1]     at async /usr/src/app/server.js:1708:28 {
+dashboard-1  | [1]   length: 141,
+dashboard-1  | [1]   severity: 'ERROR',
+dashboard-1  | [1]   code: '42703',
+dashboard-1  | [1]   detail: undefined,
+dashboard-1  | [1]   hint: undefined,
+dashboard-1  | [1]   position: '432',
+dashboard-1  | [1]   internalPosition: undefined,
+dashboard-1  | [1]   internalQuery: undefined,
+dashboard-1  | [1]   where: undefined,
+dashboard-1  | [1]   schema: undefined,
+dashboard-1  | [1]   table: undefined,
+dashboard-1  | [1]   column: undefined,
+dashboard-1  | [1]   dataType: undefined,
+dashboard-1  | [1]   constraint: undefined,
+dashboard-1  | [1]   file: 'analyze.c',
+dashboard-1  | [1]   line: '2515',
+dashboard-1  | [1]   routine: 'transformUpdateTargetList'
+dashboard-1  | [1] }
+dashboard-1  | [1] Error upserting role during API fetch: error: column "last_updated" of relation "discord_roles" does not exist
+dashboard-1  | [1]     at /usr/src/app/node_modules/pg-pool/index.js:45:11
+dashboard-1  | [1]     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+dashboard-1  | [1]     at async /usr/src/app/server.js:1708:28 {
+dashboard-1  | [1]   length: 141,
+dashboard-1  | [1]   severity: 'ERROR',
+dashboard-1  | [1]   code: '42703',
+dashboard-1  | [1]   detail: undefined,
+dashboard-1  | [1]   hint: undefined,
+dashboard-1  | [1]   position: '432',
+dashboard-1  | [1]   internalPosition: undefined,
+dashboard-1  | [1]   internalQuery: undefined,
+dashboard-1  | [1]   where: undefined,
+dashboard-1  | [1]   schema: undefined,
+dashboard-1  | [1]   table: undefined,
+dashboard-1  | [1]   column: undefined,
+dashboard-1  | [1]   dataType: undefined,
+dashboard-1  | [1]   constraint: undefined,
+dashboard-1  | [1]   file: 'analyze.c',
+dashboard-1  | [1]   line: '2515',
+dashboard-1  | [1]   routine: 'transformUpdateTargetList'
+dashboard-1  | [1] }
+db-1         | 2026-01-13 00:58:21.314 UTC [4481] ERROR:  column "last_updated" of relation "discord_roles" does not exist at character 432
+db-1         | 2026-01-13 00:58:21.314 UTC [4481] STATEMENT:  INSERT INTO discord_roles (role_id, guild_id, name, color, position, permissions, managed)
+db-1         |                                  VALUES ($1, $2, $3, $4, $5, $6, $7)
+db-1         |                                  ON CONFLICT (role_id) DO UPDATE SET
+db-1         |                                  name = EXCLUDED.name, color = EXCLUDED.color, position = EXCLUDED.position,
+db-1         |                                  permissions = EXCLUDED.permissions, managed = EXCLUDED.managed, last_updated = NOW()
+db-1         | 2026-01-13 00:58:21.314 UTC [4482] ERROR:  column "last_updated" of relation "discord_roles" does not exist at character 432
+db-1         | 2026-01-13 00:58:21.314 UTC [4482] STATEMENT:  INSERT INTO discord_roles (role_id, guild_id, name, color, position, permissions, managed)
+db-1         |                                  VALUES ($1, $2, $3, $4, $5, $6, $7)
+db-1         |                                  ON CONFLICT (role_id) DO UPDATE SET
+db-1         |                                  name = EXCLUDED.name, color = EXCLUDED.color, position = EXCLUDED.position,
+db-1         |                                  permissions = EXCLUDED.permissions, managed = EXCLUDED.managed, last_updated = NOW()
+dashboard-1  | [1] Error upserting role during API fetch: error: column "last_updated" of relation "discord_roles" does not exist
+dashboard-1  | [1]     at /usr/src/app/node_modules/pg-pool/index.js:45:11
+dashboard-1  | [1]     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+dashboard-1  | [1]     at async /usr/src/app/server.js:1708:28 {
+dashboard-1  | [1]   length: 141,
+dashboard-1  | [1]   severity: 'ERROR',
+dashboard-1  | [1]   code: '42703',
+dashboard-1  | [1]   detail: undefined,
+dashboard-1  | [1]   hint: undefined,
+dashboard-1  | [1]   position: '432',
+dashboard-1  | [1]   internalPosition: undefined,
+dashboard-1  | [1]   internalQuery: undefined,
+dashboard-1  | [1]   where: undefined,
+dashboard-1  | [1]   schema: undefined,
+dashboard-1  | [1]   table: undefined,
+dashboard-1  | [1]   column: undefined,
+dashboard-1  | [1]   dataType: undefined,
+dashboard-1  | [1]   constraint: undefined,
+dashboard-1  | [1]   file: 'analyze.c',
+dashboard-1  | [1]   line: '2515',
+dashboard-1  | [1]   routine: 'transformUpdateTargetList'
+dashboard-1  | [1] }
+dashboard-1  | [1] Error upserting role during API fetch: error: column "last_updated" of relation "discord_roles" does not exist
+dashboard-1  | [1]     at /usr/src/app/node_modules/pg-pool/index.js:45:11
+dashboard-1  | [1]     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+dashboard-1  | [1]     at async /usr/src/app/server.js:1708:28 {
+dashboard-1  | [1]   length: 141,
+dashboard-1  | [1]   severity: 'ERROR',
+dashboard-1  | [1]   code: '42703',
+dashboard-1  | [1]   detail: undefined,
+dashboard-1  | [1]   hint: undefined,
+dashboard-1  | [1]   position: '432',
+dashboard-1  | [1]   internalPosition: undefined,
+dashboard-1  | [1]   internalQuery: undefined,
+dashboard-1  | [1]   where: undefined,
+dashboard-1  | [1]   schema: undefined,
+dashboard-1  | [1]   table: undefined,
+dashboard-1  | [1]   column: undefined,
+dashboard-1  | [1]   dataType: undefined,
+dashboard-1  | [1]   constraint: undefined,
+dashboard-1  | [1]   file: 'analyze.c',
+dashboard-1  | [1]   line: '2515',
+dashboard-1  | [1]   routine: 'transformUpdateTargetList'
+dashboard-1  | [1] }
+db-1         | 2026-01-13 00:58:21.324 UTC [4483] ERROR:  column "last_updated" of relation "discord_roles" does not exist at character 432
+db-1         | 2026-01-13 00:58:21.324 UTC [4483] STATEMENT:  INSERT INTO discord_roles (role_id, guild_id, name, color, position, permissions, managed)
+db-1         |                                  VALUES ($1, $2, $3, $4, $5, $6, $7)
+db-1         |                                  ON CONFLICT (role_id) DO UPDATE SET
+db-1         |                                  name = EXCLUDED.name, color = EXCLUDED.color, position = EXCLUDED.position,
+db-1         |                                  permissions = EXCLUDED.permissions, managed = EXCLUDED.managed, last_updated = NOW()
+dashboard-1  | [1] Error upserting role during API fetch: error: column "last_updated" of relation "discord_roles" does not exist
+dashboard-1  | [1]     at /usr/src/app/node_modules/pg-pool/index.js:45:11
+dashboard-1  | [1]     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+dashboard-1  | [1]     at async /usr/src/app/server.js:1708:28 {
+dashboard-1  | [1]   length: 141,
+dashboard-1  | [1]   severity: 'ERROR',
+dashboard-1  | [1]   code: '42703',
+dashboard-1  | [1]   detail: undefined,
+dashboard-1  | [1]   hint: undefined,
+dashboard-1  | [1]   position: '432',
+dashboard-1  | [1]   internalPosition: undefined,
+dashboard-1  | [1]   internalQuery: undefined,
+dashboard-1  | [1]   where: undefined,
+dashboard-1  | [1]   schema: undefined,
+dashboard-1  | [1]   table: undefined,
+dashboard-1  | [1]   column: undefined,
+dashboard-1  | [1]   dataType: undefined,
+dashboard-1  | [1]   constraint: undefined,
+dashboard-1  | [1]   file: 'analyze.c',
+dashboard-1  | [1]   line: '2515',
+dashboard-1  | [1]   routine: 'transformUpdateTargetList'
+dashboard-1  | [1] }
+db-1         | 2026-01-13 00:58:21.326 UTC [4484] ERROR:  column "last_updated" of relation "discord_roles" does not exist at character 432
+db-1         | 2026-01-13 00:58:21.326 UTC [4484] STATEMENT:  INSERT INTO discord_roles (role_id, guild_id, name, color, position, permissions, managed)
+dashboard-1  | [1] Error upserting role during API fetch: error: column "last_updated" of relation "discord_roles" does not exist
+dashboard-1  | [1]     at /usr/src/app/node_modules/pg-pool/index.js:45:11
+dashboard-1  | [1]     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+dashboard-1  | [1]     at async /usr/src/app/server.js:1708:28 {
+dashboard-1  | [1]   length: 141,
+dashboard-1  | [1]   severity: 'ERROR',
+dashboard-1  | [1]   code: '42703',
+dashboard-1  | [1]   detail: undefined,
+dashboard-1  | [1]   hint: undefined,
+dashboard-1  | [1]   position: '432',
+dashboard-1  | [1]   internalPosition: undefined,
+dashboard-1  | [1]   internalQuery: undefined,
+dashboard-1  | [1]   where: undefined,
+dashboard-1  | [1]   schema: undefined,
+dashboard-1  | [1]   table: undefined,
+dashboard-1  | [1]   column: undefined,
+dashboard-1  | [1]   dataType: undefined,
+dashboard-1  | [1]   constraint: undefined,
+dashboard-1  | [1]   file: 'analyze.c',
+dashboard-1  | [1]   line: '2515',
+dashboard-1  | [1]   routine: 'transformUpdateTargetList'
+dashboard-1  | [1] }
+db-1         |                                  VALUES ($1, $2, $3, $4, $5, $6, $7)
+db-1         |                                  ON CONFLICT (role_id) DO UPDATE SET
+db-1         |                                  name = EXCLUDED.name, color = EXCLUDED.color, position = EXCLUDED.position,
+db-1         |                                  permissions = EXCLUDED.permissions, managed = EXCLUDED.managed, last_updated = NOW()
+db-1         | 2026-01-13 00:58:21.334 UTC [4485] ERROR:  column "last_updated" of relation "discord_roles" does not exist at character 432
+dashboard-1  | [1] Error upserting role during API fetch: error: column "last_updated" of relation "discord_roles" does not exist
+dashboard-1  | [1]     at /usr/src/app/node_modules/pg-pool/index.js:45:11
+dashboard-1  | [1]     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+dashboard-1  | [1]     at async /usr/src/app/server.js:1708:28 {
+dashboard-1  | [1]   length: 141,
+db-1         | 2026-01-13 00:58:21.334 UTC [4485] STATEMENT:  INSERT INTO discord_roles (role_id, guild_id, name, color, position, permissions, managed)
+db-1         |                                  VALUES ($1, $2, $3, $4, $5, $6, $7)
+db-1         |                                  ON CONFLICT (role_id) DO UPDATE SET
+db-1         |                                  name = EXCLUDED.name, color = EXCLUDED.color, position = EXCLUDED.position,
+db-1         |                                  permissions = EXCLUDED.permissions, managed = EXCLUDED.managed, last_updated = NOW()
+dashboard-1  | [1]   severity: 'ERROR',
+dashboard-1  | [1]   code: '42703',
+dashboard-1  | [1]   detail: undefined,
+dashboard-1  | [1]   hint: undefined,
+dashboard-1  | [1]   position: '432',
+dashboard-1  | [1]   internalPosition: undefined,
+dashboard-1  | [1]   internalQuery: undefined,
+dashboard-1  | [1]   where: undefined,
+dashboard-1  | [1]   schema: undefined,
+dashboard-1  | [1]   table: undefined,
+dashboard-1  | [1]   column: undefined,
+dashboard-1  | [1]   dataType: undefined,
+dashboard-1  | [1]   constraint: undefined,
+dashboard-1  | [1]   file: 'analyze.c',
+dashboard-1  | [1]   line: '2515',
+dashboard-1  | [1]   routine: 'transformUpdateTargetList'
+dashboard-1  | [1] }
+db-1         | 2026-01-13 00:58:21.338 UTC [4486] ERROR:  column "last_updated" of relation "discord_roles" does not exist at character 432
+db-1         | 2026-01-13 00:58:21.338 UTC [4486] STATEMENT:  INSERT INTO discord_roles (role_id, guild_id, name, color, position, permissions, managed)
+db-1         |                                  VALUES ($1, $2, $3, $4, $5, $6, $7)
+db-1         |                                  ON CONFLICT (role_id) DO UPDATE SET
+db-1         |                                  name = EXCLUDED.name, color = EXCLUDED.color, position = EXCLUDED.position,
+db-1         |                                  permissions = EXCLUDED.permissions, managed = EXCLUDED.managed, last_updated = NOW()
+dashboard-1  | [1] Error upserting role during API fetch: error: column "last_updated" of relation "discord_roles" does not exist
+dashboard-1  | [1]     at /usr/src/app/node_modules/pg-pool/index.js:45:11
+dashboard-1  | [1]     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+dashboard-1  | [1]     at async /usr/src/app/server.js:1708:28 {
+dashboard-1  | [1]   length: 141,
+dashboard-1  | [1]   severity: 'ERROR',
+dashboard-1  | [1]   code: '42703',
+dashboard-1  | [1]   detail: undefined,
+dashboard-1  | [1]   hint: undefined,
+dashboard-1  | [1]   position: '432',
+dashboard-1  | [1]   internalPosition: undefined,
+dashboard-1  | [1]   internalQuery: undefined,
+dashboard-1  | [1]   where: undefined,
+dashboard-1  | [1]   schema: undefined,
+dashboard-1  | [1]   table: undefined,
+dashboard-1  | [1]   column: undefined,
+dashboard-1  | [1]   dataType: undefined,
+dashboard-1  | [1]   constraint: undefined,
+dashboard-1  | [1]   file: 'analyze.c',
+dashboard-1  | [1]   line: '2515',
+dashboard-1  | [1]   routine: 'transformUpdateTargetList'
+dashboard-1  | [1] }
+db-1         | 2026-01-13 00:58:21.344 UTC [4487] ERROR:  column "last_updated" of relation "discord_roles" does not exist at character 432
+db-1         | 2026-01-13 00:58:21.344 UTC [4487] STATEMENT:  INSERT INTO discord_roles (role_id, guild_id, name, color, position, permissions, managed)
+db-1         |                                  VALUES ($1, $2, $3, $4, $5, $6, $7)
+db-1         |                                  ON CONFLICT (role_id) DO UPDATE SET
+db-1         |                                  name = EXCLUDED.name, color = EXCLUDED.color, position = EXCLUDED.position,
+db-1         |                                  permissions = EXCLUDED.permissions, managed = EXCLUDED.managed, last_updated = NOW()
+dashboard-1  | [1] Error upserting role during API fetch: error: column "last_updated" of relation "discord_roles" does not exist
+dashboard-1  | [1]     at /usr/src/app/node_modules/pg-pool/index.js:45:11
+dashboard-1  | [1]     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+dashboard-1  | [1]     at async /usr/src/app/server.js:1708:28 {
+dashboard-1  | [1]   length: 141,
+dashboard-1  | [1]   severity: 'ERROR',
+dashboard-1  | [1]   code: '42703',
+dashboard-1  | [1]   detail: undefined,
+dashboard-1  | [1]   hint: undefined,
+dashboard-1  | [1]   position: '432',
+dashboard-1  | [1]   internalPosition: undefined,
+dashboard-1  | [1]   internalQuery: undefined,
+dashboard-1  | [1]   where: undefined,
+dashboard-1  | [1]   schema: undefined,
+dashboard-1  | [1]   table: undefined,
+dashboard-1  | [1]   column: undefined,
+dashboard-1  | [1]   dataType: undefined,
+dashboard-1  | [1]   constraint: undefined,
+dashboard-1  | [1]   file: 'analyze.c',
+dashboard-1  | [1]   line: '2515',
+dashboard-1  | [1]   routine: 'transformUpdateTargetList'
+dashboard-1  | [1] }
+db-1         | 2026-01-13 00:58:21.347 UTC [4488] ERROR:  column "last_updated" of relation "discord_roles" does not exist at character 432
+db-1         | 2026-01-13 00:58:21.347 UTC [4488] STATEMENT:  INSERT INTO discord_roles (role_id, guild_id, name, color, position, permissions, managed)
+db-1         |                                  VALUES ($1, $2, $3, $4, $5, $6, $7)
+db-1         |                                  ON CONFLICT (role_id) DO UPDATE SET
+db-1         |                                  name = EXCLUDED.name, color = EXCLUDED.color, position = EXCLUDED.position,
+db-1         |                                  permissions = EXCLUDED.permissions, managed = EXCLUDED.managed, last_updated = NOW()
+dashboard-1  | [1] Error upserting role during API fetch: error: column "last_updated" of relation "discord_roles" does not exist
+dashboard-1  | [1]     at /usr/src/app/node_modules/pg-pool/index.js:45:11
+dashboard-1  | [1]     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+dashboard-1  | [1]     at async /usr/src/app/server.js:1708:28 {
+dashboard-1  | [1]   length: 141,
+dashboard-1  | [1]   severity: 'ERROR',
+dashboard-1  | [1]   code: '42703',
+dashboard-1  | [1]   detail: undefined,
+dashboard-1  | [1]   hint: undefined,
+dashboard-1  | [1]   position: '432',
+dashboard-1  | [1]   internalPosition: undefined,
+dashboard-1  | [1]   internalQuery: undefined,
+dashboard-1  | [1]   where: undefined,
+dashboard-1  | [1]   schema: undefined,
+dashboard-1  | [1]   table: undefined,
+dashboard-1  | [1]   column: undefined,
+dashboard-1  | [1]   dataType: undefined,
+dashboard-1  | [1]   constraint: undefined,
+dashboard-1  | [1]   file: 'analyze.c',
+dashboard-1  | [1]   line: '2515',
+dashboard-1  | [1]   routine: 'transformUpdateTargetList'
+dashboard-1  | [1] }
+db-1         | 2026-01-13 00:58:21.355 UTC [4489] ERROR:  column "last_updated" of relation "discord_roles" does not exist at character 432
+db-1         | 2026-01-13 00:58:21.355 UTC [4489] STATEMENT:  INSERT INTO discord_roles (role_id, guild_id, name, color, position, permissions, managed)
+db-1         |                                  VALUES ($1, $2, $3, $4, $5, $6, $7)
+db-1         |                                  ON CONFLICT (role_id) DO UPDATE SET
+db-1         |                                  name = EXCLUDED.name, color = EXCLUDED.color, position = EXCLUDED.position,
+db-1         |                                  permissions = EXCLUDED.permissions, managed = EXCLUDED.managed, last_updated = NOW()
+db-1         | 2026-01-13 00:58:21.355 UTC [4490] ERROR:  column "last_updated" of relation "discord_roles" does not exist at character 432
+db-1         | 2026-01-13 00:58:21.355 UTC [4490] STATEMENT:  INSERT INTO discord_roles (role_id, guild_id, name, color, position, permissions, managed)
+db-1         |                                  VALUES ($1, $2, $3, $4, $5, $6, $7)
+db-1         |                                  ON CONFLICT (role_id) DO UPDATE SET
+db-1         |                                  name = EXCLUDED.name, color = EXCLUDED.color, position = EXCLUDED.position,
+db-1         |                                  permissions = EXCLUDED.permissions, managed = EXCLUDED.managed, last_updated = NOW()
+dashboard-1  | [1] Error upserting role during API fetch: error: column "last_updated" of relation "discord_roles" does not exist
+dashboard-1  | [1]     at /usr/src/app/node_modules/pg-pool/index.js:45:11
+dashboard-1  | [1]     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+dashboard-1  | [1]     at async /usr/src/app/server.js:1708:28 {
+dashboard-1  | [1]   length: 141,
+dashboard-1  | [1]   severity: 'ERROR',
+dashboard-1  | [1]   code: '42703',
+dashboard-1  | [1]   detail: undefined,
+dashboard-1  | [1]   hint: undefined,
+dashboard-1  | [1]   position: '432',
+dashboard-1  | [1]   internalPosition: undefined,
+dashboard-1  | [1]   internalQuery: undefined,
+dashboard-1  | [1]   where: undefined,
+dashboard-1  | [1]   schema: undefined,
+dashboard-1  | [1]   table: undefined,
+dashboard-1  | [1]   column: undefined,
+dashboard-1  | [1]   dataType: undefined,
+dashboard-1  | [1]   constraint: undefined,
+dashboard-1  | [1]   file: 'analyze.c',
+dashboard-1  | [1]   line: '2515',
+dashboard-1  | [1]   routine: 'transformUpdateTargetList'
+dashboard-1  | [1] }
+dashboard-1  | [1] Error upserting role during API fetch: error: column "last_updated" of relation "discord_roles" does not exist
+dashboard-1  | [1]     at /usr/src/app/node_modules/pg-pool/index.js:45:11
+dashboard-1  | [1]     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+dashboard-1  | [1]     at async /usr/src/app/server.js:1708:28 {
+dashboard-1  | [1]   length: 141,
+dashboard-1  | [1]   severity: 'ERROR',
+dashboard-1  | [1]   code: '42703',
+dashboard-1  | [1]   detail: undefined,
+dashboard-1  | [1]   hint: undefined,
+dashboard-1  | [1]   position: '432',
+dashboard-1  | [1]   internalPosition: undefined,
+dashboard-1  | [1]   internalQuery: undefined,
+dashboard-1  | [1]   where: undefined,
+dashboard-1  | [1]   schema: undefined,
+dashboard-1  | [1]   table: undefined,
+dashboard-1  | [1]   column: undefined,
+dashboard-1  | [1]   dataType: undefined,
+dashboard-1  | [1]   constraint: undefined,
+dashboard-1  | [1]   file: 'analyze.c',
+dashboard-1  | [1]   line: '2515',
+dashboard-1  | [1]   routine: 'transformUpdateTargetList'
+dashboard-1  | [1] }
+db-1         | 2026-01-13 00:58:21.371 UTC [4491] ERROR:  column "last_updated" of relation "discord_roles" does not exist at character 432
+db-1         | 2026-01-13 00:58:21.371 UTC [4491] STATEMENT:  INSERT INTO discord_roles (role_id, guild_id, name, color, position, permissions, managed)
+db-1         |                                  VALUES ($1, $2, $3, $4, $5, $6, $7)
+db-1         |                                  ON CONFLICT (role_id) DO UPDATE SET
+db-1         |                                  name = EXCLUDED.name, color = EXCLUDED.color, position = EXCLUDED.position,
+db-1         |                                  permissions = EXCLUDED.permissions, managed = EXCLUDED.managed, last_updated = NOW()
+db-1         | 2026-01-13 00:58:21.371 UTC [4492] ERROR:  column "last_updated" of relation "discord_roles" does not exist at character 432
+db-1         | 2026-01-13 00:58:21.371 UTC [4492] STATEMENT:  INSERT INTO discord_roles (role_id, guild_id, name, color, position, permissions, managed)
+db-1         |                                  VALUES ($1, $2, $3, $4, $5, $6, $7)
+db-1         |                                  ON CONFLICT (role_id) DO UPDATE SET
+db-1         |                                  name = EXCLUDED.name, color = EXCLUDED.color, position = EXCLUDED.position,
+db-1         |                                  permissions = EXCLUDED.permissions, managed = EXCLUDED.managed, last_updated = NOW()
+dashboard-1  | [1] Error upserting role during API fetch: error: column "last_updated" of relation "discord_roles" does not exist
+dashboard-1  | [1]     at /usr/src/app/node_modules/pg-pool/index.js:45:11
+dashboard-1  | [1]     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+dashboard-1  | [1]     at async /usr/src/app/server.js:1708:28 {
+dashboard-1  | [1]   length: 141,
+dashboard-1  | [1]   severity: 'ERROR',
+dashboard-1  | [1]   code: '42703',
+dashboard-1  | [1]   detail: undefined,
+dashboard-1  | [1]   hint: undefined,
+dashboard-1  | [1]   position: '432',
+dashboard-1  | [1]   internalPosition: undefined,
+dashboard-1  | [1]   internalQuery: undefined,
+dashboard-1  | [1]   where: undefined,
+dashboard-1  | [1]   schema: undefined,
+dashboard-1  | [1]   table: undefined,
+dashboard-1  | [1]   column: undefined,
+dashboard-1  | [1]   dataType: undefined,
+dashboard-1  | [1]   constraint: undefined,
+dashboard-1  | [1]   file: 'analyze.c',
+dashboard-1  | [1]   line: '2515',
+dashboard-1  | [1]   routine: 'transformUpdateTargetList'
+dashboard-1  | [1] }
+dashboard-1  | [1] Error upserting role during API fetch: error: column "last_updated" of relation "discord_roles" does not exist
+dashboard-1  | [1]     at /usr/src/app/node_modules/pg-pool/index.js:45:11
+dashboard-1  | [1]     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+dashboard-1  | [1]     at async /usr/src/app/server.js:1708:28 {
+dashboard-1  | [1]   length: 141,
+dashboard-1  | [1]   severity: 'ERROR',
+dashboard-1  | [1]   code: '42703',
+dashboard-1  | [1]   detail: undefined,
+dashboard-1  | [1]   hint: undefined,
+dashboard-1  | [1]   position: '432',
+dashboard-1  | [1]   internalPosition: undefined,
+dashboard-1  | [1]   internalQuery: undefined,
+dashboard-1  | [1]   where: undefined,
+dashboard-1  | [1]   schema: undefined,
+dashboard-1  | [1]   table: undefined,
+dashboard-1  | [1]   column: undefined,
+dashboard-1  | [1]   dataType: undefined,
+dashboard-1  | [1]   constraint: undefined,
+dashboard-1  | [1]   file: 'analyze.c',
+dashboard-1  | [1]   line: '2515',
+dashboard-1  | [1]   routine: 'transformUpdateTargetList'
+dashboard-1  | [1] }
+db-1         | 2026-01-13 00:58:21.388 UTC [4494] ERROR:  column "last_updated" of relation "discord_roles" does not exist at character 432
+db-1         | 2026-01-13 00:58:21.388 UTC [4494] STATEMENT:  INSERT INTO discord_roles (role_id, guild_id, name, color, position, permissions, managed)
+db-1         |                                  VALUES ($1, $2, $3, $4, $5, $6, $7)
+db-1         |                                  ON CONFLICT (role_id) DO UPDATE SET
+db-1         |                                  name = EXCLUDED.name, color = EXCLUDED.color, position = EXCLUDED.position,
+db-1         |                                  permissions = EXCLUDED.permissions, managed = EXCLUDED.managed, last_updated = NOW()
+db-1         | 2026-01-13 00:58:21.388 UTC [4493] ERROR:  column "last_updated" of relation "discord_roles" does not exist at character 432
+db-1         | 2026-01-13 00:58:21.388 UTC [4493] STATEMENT:  INSERT INTO discord_roles (role_id, guild_id, name, color, position, permissions, managed)
+db-1         |                                  VALUES ($1, $2, $3, $4, $5, $6, $7)
+db-1         |                                  ON CONFLICT (role_id) DO UPDATE SET
+db-1         |                                  name = EXCLUDED.name, color = EXCLUDED.color, position = EXCLUDED.position,
+db-1         |                                  permissions = EXCLUDED.permissions, managed = EXCLUDED.managed, last_updated = NOW()
+dashboard-1  | [1] Error upserting role during API fetch: error: column "last_updated" of relation "discord_roles" does not exist
+dashboard-1  | [1]     at /usr/src/app/node_modules/pg-pool/index.js:45:11
+dashboard-1  | [1]     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+dashboard-1  | [1]     at async /usr/src/app/server.js:1708:28 {
+dashboard-1  | [1]   length: 141,
+dashboard-1  | [1]   severity: 'ERROR',
+dashboard-1  | [1]   code: '42703',
+dashboard-1  | [1]   detail: undefined,
+dashboard-1  | [1]   hint: undefined,
+dashboard-1  | [1]   position: '432',
+dashboard-1  | [1]   internalPosition: undefined,
+dashboard-1  | [1]   internalQuery: undefined,
+dashboard-1  | [1]   where: undefined,
+dashboard-1  | [1]   schema: undefined,
+dashboard-1  | [1]   table: undefined,
+dashboard-1  | [1]   column: undefined,
+dashboard-1  | [1]   dataType: undefined,
+dashboard-1  | [1]   constraint: undefined,
+dashboard-1  | [1]   file: 'analyze.c',
+dashboard-1  | [1]   line: '2515',
+dashboard-1  | [1]   routine: 'transformUpdateTargetList'
+dashboard-1  | [1] }
+dashboard-1  | [1] Error upserting role during API fetch: error: column "last_updated" of relation "discord_roles" does not exist
+dashboard-1  | [1]     at /usr/src/app/node_modules/pg-pool/index.js:45:11
+dashboard-1  | [1]     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+dashboard-1  | [1]     at async /usr/src/app/server.js:1708:28 {
+dashboard-1  | [1]   length: 141,
+dashboard-1  | [1]   severity: 'ERROR',
+dashboard-1  | [1]   code: '42703',
+dashboard-1  | [1]   detail: undefined,
+dashboard-1  | [1]   hint: undefined,
+dashboard-1  | [1]   position: '432',
+dashboard-1  | [1]   internalPosition: undefined,
+dashboard-1  | [1]   internalQuery: undefined,
+dashboard-1  | [1]   where: undefined,
+dashboard-1  | [1]   schema: undefined,
+dashboard-1  | [1]   table: undefined,
+dashboard-1  | [1]   column: undefined,
+dashboard-1  | [1]   dataType: undefined,
+dashboard-1  | [1]   constraint: undefined,
+dashboard-1  | [1]   file: 'analyze.c',
+dashboard-1  | [1]   line: '2515',
+dashboard-1  | [1]   routine: 'transformUpdateTargetList'
+dashboard-1  | [1] }
+db-1         | 2026-01-13 00:58:21.400 UTC [4495] ERROR:  column "last_updated" of relation "discord_roles" does not exist at character 432
+db-1         | 2026-01-13 00:58:21.400 UTC [4495] STATEMENT:  INSERT INTO discord_roles (role_id, guild_id, name, color, position, permissions, managed)
+db-1         |                                  VALUES ($1, $2, $3, $4, $5, $6, $7)
+db-1         |                                  ON CONFLICT (role_id) DO UPDATE SET
+db-1         |                                  name = EXCLUDED.name, color = EXCLUDED.color, position = EXCLUDED.position,
+db-1         |                                  permissions = EXCLUDED.permissions, managed = EXCLUDED.managed, last_updated = NOW()
+db-1         | 2026-01-13 00:58:21.400 UTC [4496] ERROR:  column "last_updated" of relation "discord_roles" does not exist at character 432
+db-1         | 2026-01-13 00:58:21.400 UTC [4496] STATEMENT:  INSERT INTO discord_roles (role_id, guild_id, name, color, position, permissions, managed)
+db-1         |                                  VALUES ($1, $2, $3, $4, $5, $6, $7)
+db-1         |                                  ON CONFLICT (role_id) DO UPDATE SET
+db-1         |                                  name = EXCLUDED.name, color = EXCLUDED.color, position = EXCLUDED.position,
+db-1         |                                  permissions = EXCLUDED.permissions, managed = EXCLUDED.managed, last_updated = NOW()
+dashboard-1  | [1] Error upserting role during API fetch: error: column "last_updated" of relation "discord_roles" does not exist
+dashboard-1  | [1]     at /usr/src/app/node_modules/pg-pool/index.js:45:11
+dashboard-1  | [1]     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+dashboard-1  | [1]     at async /usr/src/app/server.js:1708:28 {
+dashboard-1  | [1]   length: 141,
+dashboard-1  | [1]   severity: 'ERROR',
+dashboard-1  | [1]   code: '42703',
+dashboard-1  | [1]   detail: undefined,
+dashboard-1  | [1]   hint: undefined,
+dashboard-1  | [1]   position: '432',
+dashboard-1  | [1]   internalPosition: undefined,
+dashboard-1  | [1]   internalQuery: undefined,
+dashboard-1  | [1]   where: undefined,
+dashboard-1  | [1]   schema: undefined,
+dashboard-1  | [1]   table: undefined,
+dashboard-1  | [1]   column: undefined,
+dashboard-1  | [1]   dataType: undefined,
+dashboard-1  | [1]   constraint: undefined,
+dashboard-1  | [1]   file: 'analyze.c',
+dashboard-1  | [1]   line: '2515',
+dashboard-1  | [1]   routine: 'transformUpdateTargetList'
+dashboard-1  | [1] }
+dashboard-1  | [1] Error upserting role during API fetch: error: column "last_updated" of relation "discord_roles" does not exist
+dashboard-1  | [1]     at /usr/src/app/node_modules/pg-pool/index.js:45:11
+dashboard-1  | [1]     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+dashboard-1  | [1]     at async /usr/src/app/server.js:1708:28 {
+dashboard-1  | [1]   length: 141,
+dashboard-1  | [1]   severity: 'ERROR',
+dashboard-1  | [1]   code: '42703',
+dashboard-1  | [1]   detail: undefined,
+dashboard-1  | [1]   hint: undefined,
+dashboard-1  | [1]   position: '432',
+dashboard-1  | [1]   internalPosition: undefined,
+dashboard-1  | [1]   internalQuery: undefined,
+dashboard-1  | [1]   where: undefined,
+dashboard-1  | [1]   schema: undefined,
+dashboard-1  | [1]   table: undefined,
+dashboard-1  | [1]   column: undefined,
+dashboard-1  | [1]   dataType: undefined,
+dashboard-1  | [1]   constraint: undefined,
+dashboard-1  | [1]   file: 'analyze.c',
+dashboard-1  | [1]   line: '2515',
+dashboard-1  | [1]   routine: 'transformUpdateTargetList'
+dashboard-1  | [1] }
+db-1         | 2026-01-13 00:58:21.415 UTC [4498] ERROR:  column "last_updated" of relation "discord_roles" does not exist at character 432
+db-1         | 2026-01-13 00:58:21.415 UTC [4498] STATEMENT:  INSERT INTO discord_roles (role_id, guild_id, name, color, position, permissions, managed)
+db-1         |                                  VALUES ($1, $2, $3, $4, $5, $6, $7)
+db-1         |                                  ON CONFLICT (role_id) DO UPDATE SET
+db-1         |                                  name = EXCLUDED.name, color = EXCLUDED.color, position = EXCLUDED.position,
+db-1         |                                  permissions = EXCLUDED.permissions, managed = EXCLUDED.managed, last_updated = NOW()
+db-1         | 2026-01-13 00:58:21.415 UTC [4497] ERROR:  column "last_updated" of relation "discord_roles" does not exist at character 432
+db-1         | 2026-01-13 00:58:21.415 UTC [4497] STATEMENT:  INSERT INTO discord_roles (role_id, guild_id, name, color, position, permissions, managed)
+db-1         |                                  VALUES ($1, $2, $3, $4, $5, $6, $7)
+db-1         |                                  ON CONFLICT (role_id) DO UPDATE SET
+db-1         |                                  name = EXCLUDED.name, color = EXCLUDED.color, position = EXCLUDED.position,
+db-1         |                                  permissions = EXCLUDED.permissions, managed = EXCLUDED.managed, last_updated = NOW()
+dashboard-1  | [1] Error upserting role during API fetch: error: column "last_updated" of relation "discord_roles" does not exist
+dashboard-1  | [1]     at /usr/src/app/node_modules/pg-pool/index.js:45:11
+dashboard-1  | [1]     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+dashboard-1  | [1]     at async /usr/src/app/server.js:1708:28 {
+dashboard-1  | [1]   length: 141,
+dashboard-1  | [1]   severity: 'ERROR',
+dashboard-1  | [1]   code: '42703',
+dashboard-1  | [1]   detail: undefined,
+dashboard-1  | [1]   hint: undefined,
+dashboard-1  | [1]   position: '432',
+dashboard-1  | [1]   internalPosition: undefined,
+dashboard-1  | [1]   internalQuery: undefined,
+dashboard-1  | [1]   where: undefined,
+dashboard-1  | [1]   schema: undefined,
+dashboard-1  | [1]   table: undefined,
+dashboard-1  | [1]   column: undefined,
+dashboard-1  | [1]   dataType: undefined,
+dashboard-1  | [1]   constraint: undefined,
+dashboard-1  | [1]   file: 'analyze.c',
+dashboard-1  | [1]   line: '2515',
+dashboard-1  | [1]   routine: 'transformUpdateTargetList'
+dashboard-1  | [1] }
+dashboard-1  | [1] Error upserting role during API fetch: error: column "last_updated" of relation "discord_roles" does not exist
+dashboard-1  | [1]     at /usr/src/app/node_modules/pg-pool/index.js:45:11
+dashboard-1  | [1]     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+dashboard-1  | [1]     at async /usr/src/app/server.js:1708:28 {
+dashboard-1  | [1]   length: 141,
+dashboard-1  | [1]   severity: 'ERROR',
+dashboard-1  | [1]   code: '42703',
+dashboard-1  | [1]   detail: undefined,
+dashboard-1  | [1]   hint: undefined,
+dashboard-1  | [1]   position: '432',
+dashboard-1  | [1]   internalPosition: undefined,
+dashboard-1  | [1]   internalQuery: undefined,
+dashboard-1  | [1]   where: undefined,
+dashboard-1  | [1]   schema: undefined,
+dashboard-1  | [1]   table: undefined,
+dashboard-1  | [1]   column: undefined,
+dashboard-1  | [1]   dataType: undefined,
+dashboard-1  | [1]   constraint: undefined,
+dashboard-1  | [1]   file: 'analyze.c',
+dashboard-1  | [1]   line: '2515',
+dashboard-1  | [1]   routine: 'transformUpdateTargetList'
+dashboard-1  | [1] }
+db-1         | 2026-01-13 00:58:21.430 UTC [4500] ERROR:  column "last_updated" of relation "discord_roles" does not exist at character 432
+db-1         | 2026-01-13 00:58:21.430 UTC [4500] STATEMENT:  INSERT INTO discord_roles (role_id, guild_id, name, color, position, permissions, managed)
+db-1         |                                  VALUES ($1, $2, $3, $4, $5, $6, $7)
+db-1         |                                  ON CONFLICT (role_id) DO UPDATE SET
+db-1         |                                  name = EXCLUDED.name, color = EXCLUDED.color, position = EXCLUDED.position,
+db-1         |                                  permissions = EXCLUDED.permissions, managed = EXCLUDED.managed, last_updated = NOW()
+db-1         | 2026-01-13 00:58:21.430 UTC [4499] ERROR:  column "last_updated" of relation "discord_roles" does not exist at character 432
+db-1         | 2026-01-13 00:58:21.430 UTC [4499] STATEMENT:  INSERT INTO discord_roles (role_id, guild_id, name, color, position, permissions, managed)
+db-1         |                                  VALUES ($1, $2, $3, $4, $5, $6, $7)
+db-1         |                                  ON CONFLICT (role_id) DO UPDATE SET
+db-1         |                                  name = EXCLUDED.name, color = EXCLUDED.color, position = EXCLUDED.position,
+db-1         |                                  permissions = EXCLUDED.permissions, managed = EXCLUDED.managed, last_updated = NOW()
+dashboard-1  | [1] Error upserting role during API fetch: error: column "last_updated" of relation "discord_roles" does not exist
+dashboard-1  | [1]     at /usr/src/app/node_modules/pg-pool/index.js:45:11
+dashboard-1  | [1]     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+dashboard-1  | [1]     at async /usr/src/app/server.js:1708:28 {
+dashboard-1  | [1]   length: 141,
+dashboard-1  | [1]   severity: 'ERROR',
+dashboard-1  | [1]   code: '42703',
+dashboard-1  | [1]   detail: undefined,
+dashboard-1  | [1]   hint: undefined,
+dashboard-1  | [1]   position: '432',
+dashboard-1  | [1]   internalPosition: undefined,
+dashboard-1  | [1]   internalQuery: undefined,
+dashboard-1  | [1]   where: undefined,
+dashboard-1  | [1]   schema: undefined,
+dashboard-1  | [1]   table: undefined,
+dashboard-1  | [1]   column: undefined,
+dashboard-1  | [1]   dataType: undefined,
+dashboard-1  | [1]   constraint: undefined,
+dashboard-1  | [1]   file: 'analyze.c',
+dashboard-1  | [1]   line: '2515',
+dashboard-1  | [1]   routine: 'transformUpdateTargetList'
+dashboard-1  | [1] }
+dashboard-1  | [1] Error upserting role during API fetch: error: column "last_updated" of relation "discord_roles" does not exist
+dashboard-1  | [1]     at /usr/src/app/node_modules/pg-pool/index.js:45:11
+dashboard-1  | [1]     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+dashboard-1  | [1]     at async /usr/src/app/server.js:1708:28 {
+dashboard-1  | [1]   length: 141,
+dashboard-1  | [1]   severity: 'ERROR',
+dashboard-1  | [1]   code: '42703',
+dashboard-1  | [1]   detail: undefined,
+dashboard-1  | [1]   hint: undefined,
+dashboard-1  | [1]   position: '432',
+dashboard-1  | [1]   internalPosition: undefined,
+dashboard-1  | [1]   internalQuery: undefined,
+dashboard-1  | [1]   where: undefined,
+dashboard-1  | [1]   schema: undefined,
+dashboard-1  | [1]   table: undefined,
+dashboard-1  | [1]   column: undefined,
+dashboard-1  | [1]   dataType: undefined,
+dashboard-1  | [1]   constraint: undefined,
+dashboard-1  | [1]   file: 'analyze.c',
+dashboard-1  | [1]   line: '2515',
+dashboard-1  | [1]   routine: 'transformUpdateTargetList'
+dashboard-1  | [1] }
+db-1         | 2026-01-13 00:58:21.438 UTC [4501] ERROR:  column "last_updated" of relation "discord_roles" does not exist at character 432
+db-1         | 2026-01-13 00:58:21.438 UTC [4501] STATEMENT:  INSERT INTO discord_roles (role_id, guild_id, name, color, position, permissions, managed)
+db-1         |                                  VALUES ($1, $2, $3, $4, $5, $6, $7)
+db-1         |                                  ON CONFLICT (role_id) DO UPDATE SET
+db-1         |                                  name = EXCLUDED.name, color = EXCLUDED.color, position = EXCLUDED.position,
+db-1         |                                  permissions = EXCLUDED.permissions, managed = EXCLUDED.managed, last_updated = NOW()
+dashboard-1  | [1] Error upserting role during API fetch: error: column "last_updated" of relation "discord_roles" does not exist
+dashboard-1  | [1]     at /usr/src/app/node_modules/pg-pool/index.js:45:11
+dashboard-1  | [1]     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+dashboard-1  | [1]     at async /usr/src/app/server.js:1708:28 {
+dashboard-1  | [1]   length: 141,
+dashboard-1  | [1]   severity: 'ERROR',
+dashboard-1  | [1]   code: '42703',
+dashboard-1  | [1]   detail: undefined,
+dashboard-1  | [1]   hint: undefined,
+dashboard-1  | [1]   position: '432',
+dashboard-1  | [1]   internalPosition: undefined,
+dashboard-1  | [1]   internalQuery: undefined,
+dashboard-1  | [1]   where: undefined,
+dashboard-1  | [1]   schema: undefined,
+dashboard-1  | [1]   table: undefined,
+dashboard-1  | [1]   column: undefined,
+dashboard-1  | [1]   dataType: undefined,
+dashboard-1  | [1]   constraint: undefined,
+dashboard-1  | [1]   file: 'analyze.c',
+dashboard-1  | [1]   line: '2515',
+dashboard-1  | [1]   routine: 'transformUpdateTargetList'
+dashboard-1  | [1] }
+db-1         | 2026-01-13 00:58:21.446 UTC [4502] ERROR:  column "last_updated" of relation "discord_roles" does not exist at character 432
+db-1         | 2026-01-13 00:58:21.446 UTC [4502] STATEMENT:  INSERT INTO discord_roles (role_id, guild_id, name, color, position, permissions, managed)
+db-1         |                                  VALUES ($1, $2, $3, $4, $5, $6, $7)
+db-1         |                                  ON CONFLICT (role_id) DO UPDATE SET
+db-1         |                                  name = EXCLUDED.name, color = EXCLUDED.color, position = EXCLUDED.position,
+db-1         |                                  permissions = EXCLUDED.permissions, managed = EXCLUDED.managed, last_updated = NOW()
+dashboard-1  | [1] Error upserting role during API fetch: error: column "last_updated" of relation "discord_roles" does not exist
+dashboard-1  | [1]     at /usr/src/app/node_modules/pg-pool/index.js:45:11
+dashboard-1  | [1]     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+dashboard-1  | [1]     at async /usr/src/app/server.js:1708:28 {
+dashboard-1  | [1]   length: 141,
+dashboard-1  | [1]   severity: 'ERROR',
+dashboard-1  | [1]   code: '42703',
+dashboard-1  | [1]   detail: undefined,
+dashboard-1  | [1]   hint: undefined,
+dashboard-1  | [1]   position: '432',
+dashboard-1  | [1]   internalPosition: undefined,
+dashboard-1  | [1]   internalQuery: undefined,
+dashboard-1  | [1]   where: undefined,
+dashboard-1  | [1]   schema: undefined,
+dashboard-1  | [1]   table: undefined,
+dashboard-1  | [1]   column: undefined,
+dashboard-1  | [1]   dataType: undefined,
+dashboard-1  | [1]   constraint: undefined,
+dashboard-1  | [1]   file: 'analyze.c',
+dashboard-1  | [1]   line: '2515',
+dashboard-1  | [1]   routine: 'transformUpdateTargetList'
+dashboard-1  | [1] }
+db-1         | 2026-01-13 00:58:21.457 UTC [4503] ERROR:  column "last_updated" of relation "discord_roles" does not exist at character 432
+db-1         | 2026-01-13 00:58:21.457 UTC [4503] STATEMENT:  INSERT INTO discord_roles (role_id, guild_id, name, color, position, permissions, managed)
+db-1         |                                  VALUES ($1, $2, $3, $4, $5, $6, $7)
+db-1         |                                  ON CONFLICT (role_id) DO UPDATE SET
+db-1         |                                  name = EXCLUDED.name, color = EXCLUDED.color, position = EXCLUDED.position,
+db-1         |                                  permissions = EXCLUDED.permissions, managed = EXCLUDED.managed, last_updated = NOW()
+dashboard-1  | [1] Error upserting role during API fetch: error: column "last_updated" of relation "discord_roles" does not exist
+dashboard-1  | [1]     at /usr/src/app/node_modules/pg-pool/index.js:45:11
+dashboard-1  | [1]     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+dashboard-1  | [1]     at async /usr/src/app/server.js:1708:28 {
+dashboard-1  | [1]   length: 141,
+dashboard-1  | [1]   severity: 'ERROR',
+dashboard-1  | [1]   code: '42703',
+dashboard-1  | [1]   detail: undefined,
+dashboard-1  | [1]   hint: undefined,
+dashboard-1  | [1]   position: '432',
+dashboard-1  | [1]   internalPosition: undefined,
+dashboard-1  | [1]   internalQuery: undefined,
+dashboard-1  | [1]   where: undefined,
+dashboard-1  | [1]   schema: undefined,
+dashboard-1  | [1]   table: undefined,
+dashboard-1  | [1]   column: undefined,
+dashboard-1  | [1]   dataType: undefined,
+dashboard-1  | [1]   constraint: undefined,
+dashboard-1  | [1]   file: 'analyze.c',
+dashboard-1  | [1]   line: '2515',
+dashboard-1  | [1]   routine: 'transformUpdateTargetList'
+dashboard-1  | [1] }
+db-1         | 2026-01-13 00:58:21.464 UTC [4504] ERROR:  column "last_updated" of relation "discord_roles" does not exist at character 432
+db-1         | 2026-01-13 00:58:21.464 UTC [4504] STATEMENT:  INSERT INTO discord_roles (role_id, guild_id, name, color, position, permissions, managed)
+db-1         |                                  VALUES ($1, $2, $3, $4, $5, $6, $7)
+db-1         |                                  ON CONFLICT (role_id) DO UPDATE SET
+db-1         |                                  name = EXCLUDED.name, color = EXCLUDED.color, position = EXCLUDED.position,
+db-1         |                                  permissions = EXCLUDED.permissions, managed = EXCLUDED.managed, last_updated = NOW()
+dashboard-1  | [1] Error upserting role during API fetch: error: column "last_updated" of relation "discord_roles" does not exist
+dashboard-1  | [1]     at /usr/src/app/node_modules/pg-pool/index.js:45:11
+dashboard-1  | [1]     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+dashboard-1  | [1]     at async /usr/src/app/server.js:1708:28 {
+dashboard-1  | [1]   length: 141,
+dashboard-1  | [1]   severity: 'ERROR',
+dashboard-1  | [1]   code: '42703',
+dashboard-1  | [1]   detail: undefined,
+dashboard-1  | [1]   hint: undefined,
+dashboard-1  | [1]   position: '432',
+dashboard-1  | [1]   internalPosition: undefined,
+dashboard-1  | [1]   internalQuery: undefined,
+dashboard-1  | [1]   where: undefined,
+dashboard-1  | [1]   schema: undefined,
+dashboard-1  | [1]   table: undefined,
+dashboard-1  | [1]   column: undefined,
+dashboard-1  | [1]   dataType: undefined,
+dashboard-1  | [1]   constraint: undefined,
+dashboard-1  | [1]   file: 'analyze.c',
+dashboard-1  | [1]   line: '2515',
+dashboard-1  | [1]   routine: 'transformUpdateTargetList'
+dashboard-1  | [1] }
+db-1         | 2026-01-13 00:58:21.472 UTC [4505] ERROR:  column "last_updated" of relation "discord_roles" does not exist at character 432
+db-1         | 2026-01-13 00:58:21.472 UTC [4505] STATEMENT:  INSERT INTO discord_roles (role_id, guild_id, name, color, position, permissions, managed)
+db-1         |                                  VALUES ($1, $2, $3, $4, $5, $6, $7)
+db-1         |                                  ON CONFLICT (role_id) DO UPDATE SET
+db-1         |                                  name = EXCLUDED.name, color = EXCLUDED.color, position = EXCLUDED.position,
+db-1         |                                  permissions = EXCLUDED.permissions, managed = EXCLUDED.managed, last_updated = NOW()
+dashboard-1  | [1] Error upserting role during API fetch: error: column "last_updated" of relation "discord_roles" does not exist
+dashboard-1  | [1]     at /usr/src/app/node_modules/pg-pool/index.js:45:11
+dashboard-1  | [1]     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+dashboard-1  | [1]     at async /usr/src/app/server.js:1708:28 {
+dashboard-1  | [1]   length: 141,
+dashboard-1  | [1]   severity: 'ERROR',
+dashboard-1  | [1]   code: '42703',
+dashboard-1  | [1]   detail: undefined,
+dashboard-1  | [1]   hint: undefined,
+dashboard-1  | [1]   position: '432',
+dashboard-1  | [1]   internalPosition: undefined,
+dashboard-1  | [1]   internalQuery: undefined,
+dashboard-1  | [1]   where: undefined,
+dashboard-1  | [1]   schema: undefined,
+dashboard-1  | [1]   table: undefined,
+dashboard-1  | [1]   column: undefined,
+dashboard-1  | [1]   dataType: undefined,
+dashboard-1  | [1]   constraint: undefined,
+dashboard-1  | [1]   file: 'analyze.c',
+dashboard-1  | [1]   line: '2515',
+dashboard-1  | [1]   routine: 'transformUpdateTargetList'
+dashboard-1  | [1] }
+bot-1        | [LOGIN] Login successful.
+bot-1        | [Sync] Starting consolidated sync module...
+bot-1        | [Sync] Performing initial guild sync...
+bot-1        | [READY] Client is ready! Logged in as Midnight_Dev#1898
+bot-1        | [READY] Performing post-login initializations...
+bot-1        | [DB][INFO] Initializing database service { host: 'db', database: 'postgres', poolMax: 20 }
+bot-1        | [DB][WARN] No migration files found { directory: '/usr/src/app/data/migrations' }
+bot-1        | [DB][INFO] Skipping initial data retention sweep (set DB_RUN_RETENTION_ON_STARTUP=1 to enable)
+bot-1        | [DB][INFO] Database service is ready
+bot-1        | [DB][INFO] Guild settings already synchronized { guildCount: 1 }
+bot-1        |   └─ [Database] Guild settings synchronized
+bot-1        |   └─ [Database] Command registry synchronized
+bot-1        | [MuteHandler] Initializing...
+bot-1        | [MuteHandler] Timers for expired mutes and failsafe checks have been started.
+bot-1        |   └─ [Module] Initialized: Mute Handler
+bot-1        | [InviteTracker] Initializing invite tracking...
+bot-1        |   └─ [Module] Initialized: Invite Tracker
+bot-1        | [DBBackup] Using owner ID: 134118092082118657
+bot-1        | [DBBackup] Backup directory ready: /usr/src/app/data/backup
+bot-1        | [DBBackup] Scheduled daily backups for 6:00 AM America/New_York time.
+bot-1        |   └─ [Module] Initialized: Database Backup Scheduler
+bot-1        |   └─ [Module] Initialized: Member Cache Manager
+bot-1        | [VoiceActivityTracker] startWorkers() - no-op
+bot-1        |   └─ [Module] Initialized: Voice Activity Tracker
+bot-1        | [PartitionManager] Starting partition management worker...
+bot-1        |   └─ [Module] Initialized: Partition Manager
+bot-1        |   └─ [Module] Initialized: Healthcheck Monitor
+bot-1        | [PartitionManager] Partition activity_log_y2026m01 already exists
+bot-1        | [PartitionManager] Partition activity_log_y2026m02 already exists
+bot-1        | [PartitionManager] Partition activity_log_y2026m03 already exists
+bot-1        | [PartitionManager] Ensured partitions exist for next 2 months
+bot-1        | [InviteTracker] Invite tracking initialized.
+bot-1        | [Sync] Synced guild: Hightower
+bot-1        | [Sync] Initial sync complete. Incremental listeners attached.
+bot-1        | [Healthcheck] Pinged success endpoint: https://hc-ping.com/6ea7cfba-1554-49f3-adde-0fc1db0c0637 (200)
+^C
+
+ *  The terminal process "/usr/bin/bash '-c', 'docker compose --file '/home/sy/Documents/midnight_dev/docker-compose.yml' --project-name 'midnight_dev' logs --follow --tail '1000''" terminated with exit code: 130. 
+ *  Terminal will be reused by tasks, press any key to close it. 

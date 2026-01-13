@@ -6,12 +6,12 @@ const { createRoleMenuEmbed, createRefreshButton, ROLE_CATEGORIES } = require('.
 module.exports = {
 	data: new SlashCommandBuilder()
 		.setName('role-menu')
-		.setDescription('Manage the server role selection menu')
+		.setDescription('Manage the server Role Menu')
 		.setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
 		.addSubcommand(subcommand =>
 			subcommand
 				.setName('create')
-				.setDescription('Create or update the role selection menu')
+				.setDescription('Create or update the Role Menu')
 				.addChannelOption(option =>
 					option
 						.setName('channel')
@@ -63,7 +63,7 @@ module.exports = {
 				});
 
 				// Generate detailed role report
-				let report = '✅ **Role menu created successfully!**\n\n';
+				let report = '✅ **Role Menu created successfully!**\n\n';
 				report += `📍 **Channel:** ${targetChannel}\n\n`;
 				report += '━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
 

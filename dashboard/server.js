@@ -11,6 +11,7 @@ const rateLimit = require('express-rate-limit');
 const path = require('path');
 const { Pool } = require('pg');
 const crypto = require('crypto');
+const axios = require('axios'); // Ensure axios is required for API calls
 
 // Database connection (shared with bot via same PG* env vars)
 const pool = new Pool({
@@ -613,7 +614,7 @@ app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],
-            styleSrc: ["'self'", "https://fonts.googleapis.com"],
+            styleSrc: ["'self'", "https://fonts.googleapis.com", "'unsafe-inline'"],
             fontSrc: ["'self'", "https://fonts.gstatic.com"],
             scriptSrc: ["'self'", "https://cdn.jsdelivr.net"],
             imgSrc: ["'self'", "data:", "https://cdn.discordapp.com"],
@@ -664,7 +665,7 @@ app.use((req, res, next) => {
     next();
 });
 
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'dist')));
 
 // ==================== AUTH MIDDLEWARE ====================
 
@@ -926,11 +927,56 @@ function validateOnboardingRole(role) {
 
 // ==================== GUILD SETTINGS ROUTES ====================
 
+const DASHBOARD_GUILD_SETTINGS_KEYS = [
+    // General
+    'cmd_prefix', 'bot_enabled', 'bot_timezone', 'plan_tier',
+    // Modules
+    'enable_automod', 'enable_openAI', 'enable_leveling', 'enable_economy', 'enable_role_menus',
+    'auto_role_enabled', 'auto_role_id',
+    // Roles
+    'roles_super_admin', 'roles_admin', 'roles_mod', 'roles_jr_mod', 'roles_helper', 'roles_trust', 'roles_untrusted',
+    // Moderation
+    'mute_roleID', 'mute_rolesRemoved', 'mute_immuneUserIDs',
+    'kick_immuneRoles', 'kick_immuneUserID',
+    'ban_immuneRoles', 'ban_immuneUserID',
+    // Logging channels
+    'ch_actionLog', 'ch_kickbanLog', 'ch_auditLog',
+    'ch_airlockJoin', 'ch_airlockLeave', 'ch_deletedMessages',
+    'ch_editedMessages', 'ch_automod_AI', 'ch_voiceLog',
+    'ch_inviteLog', 'ch_permanentInvites', 'ch_memberJoin',
+    // Logging enable flags (separate from channel selection)
+    'enable_ch_actionLog', 'enable_ch_kickbanLog', 'enable_ch_auditLog',
+    'enable_ch_airlockJoin', 'enable_ch_airlockLeave', 'enable_ch_deletedMessages',
+    'enable_ch_editedMessages', 'enable_ch_automod_AI', 'enable_ch_voiceLog',
+    'enable_ch_inviteLog', 'enable_ch_permanentInvites', 'enable_ch_memberJoin',
+    // Automod ignore lists
+    'ch_categoryIgnoreAutomod', 'ch_channelIgnoreAutomod'
+];
+
+const DASHBOARD_GUILD_SETTINGS_KEYS_SET = new Set(DASHBOARD_GUILD_SETTINGS_KEYS);
+
+function normalizeGuildSettingsForClient(settingsRow) {
+    if (!settingsRow || typeof settingsRow !== 'object') return {};
+
+    // pg returns unquoted column identifiers as lower-case keys.
+    // The dashboard frontend uses camelCase keys (e.g. ch_actionLog, mute_roleID).
+    // Add those canonical keys alongside the raw row so reloads keep working.
+    const normalized = { ...settingsRow };
+    for (const key of DASHBOARD_GUILD_SETTINGS_KEYS) {
+        if (normalized[key] !== undefined) continue;
+        const lowerKey = key.toLowerCase();
+        if (settingsRow[lowerKey] !== undefined) {
+            normalized[key] = settingsRow[lowerKey];
+        }
+    }
+    return normalized;
+}
+
 app.get('/api/guilds/:guildId/settings', requireAuth, async (req, res) => {
     try {
         const { guildId } = req.params;
         const settings = await getGuildSettings(guildId);
-        res.json({ settings: settings || {} });
+        res.json({ settings: normalizeGuildSettingsForClient(settings) });
     } catch (error) {
         console.error('[Dashboard] Get guild settings error:', { requestId: req.requestId, error });
         res.status(500).json({ error: 'Failed to get guild settings', requestId: req.requestId });
@@ -943,31 +989,7 @@ app.patch('/api/guilds/:guildId/settings', requireAuth, async (req, res) => {
         const updates = req.body;
         
         // Whitelist allowed settings keys to prevent arbitrary column updates
-        const allowedKeys = new Set([
-            // General
-            'cmd_prefix', 'bot_enabled', 'bot_timezone', 'plan_tier',
-            // Modules
-            'enable_automod', 'enable_openAI', 'enable_leveling', 'enable_economy', 'enable_role_menus',
-            'auto_role_enabled', 'auto_role_id',
-            // Roles
-            'roles_super_admin', 'roles_admin', 'roles_mod', 'roles_jr_mod', 'roles_helper', 'roles_trust', 'roles_untrusted',
-            // Moderation
-            'mute_roleID', 'mute_rolesRemoved', 'mute_immuneUserIDs',
-            'kick_immuneRoles', 'kick_immuneUserID',
-            'ban_immuneRoles', 'ban_immuneUserID',
-            // Logging channels
-            'ch_actionLog', 'ch_kickbanLog', 'ch_auditLog',
-            'ch_airlockJoin', 'ch_airlockLeave', 'ch_deletedMessages',
-            'ch_editedMessages', 'ch_automod_AI', 'ch_voiceLog',
-            'ch_inviteLog', 'ch_permanentInvites', 'ch_memberJoin',
-            // Logging enable flags (separate from channel selection)
-            'enable_ch_actionLog', 'enable_ch_kickbanLog', 'enable_ch_auditLog',
-            'enable_ch_airlockJoin', 'enable_ch_airlockLeave', 'enable_ch_deletedMessages',
-            'enable_ch_editedMessages', 'enable_ch_automod_AI', 'enable_ch_voiceLog',
-            'enable_ch_inviteLog', 'enable_ch_permanentInvites', 'enable_ch_memberJoin',
-            // Automod ignore lists
-            'ch_categoryIgnoreAutomod', 'ch_channelIgnoreAutomod'
-        ]);
+        const allowedKeys = DASHBOARD_GUILD_SETTINGS_KEYS_SET;
 
         const jsonArrayKeys = new Set([
             'roles_super_admin', 'roles_admin', 'roles_mod', 'roles_jr_mod', 'roles_helper', 'roles_trust', 'roles_untrusted',
@@ -1092,10 +1114,59 @@ app.get('/api/guilds/:guildId/commands', requireAuth, async (req, res) => {
             [guildId]
         );
 
-        res.json({ commands: result.rows });
+        // Group commands by category
+        const grouped = {};
+        const guildCommands = {};
+        
+        result.rows.forEach(cmd => {
+            const category = cmd.category || 'uncategorized';
+            if (!grouped[category]) {
+                grouped[category] = [];
+            }
+            grouped[category].push({
+                command_name: cmd.command_name,
+                has_slash: cmd.has_slash,
+                has_prefix: cmd.has_prefix
+            });
+            guildCommands[cmd.command_name] = cmd.enabled;
+        });
+
+        res.json({ commands: grouped, guildCommands });
     } catch (error) {
         console.error('[Dashboard] Get commands error:', { requestId: req.requestId, error });
         res.status(500).json({ error: 'Failed to get commands', requestId: req.requestId });
+    }
+});
+
+app.patch('/api/guilds/:guildId/commands/:commandName', requireAuth, async (req, res) => {
+    try {
+        const { guildId, commandName } = req.params;
+        const { enabled } = req.body || {};
+
+        if (typeof enabled !== 'boolean') {
+            return res.status(400).json({ error: 'enabled must be boolean' });
+        }
+
+        // Validate command exists
+        const exists = await pool.query('SELECT 1 FROM command_registry WHERE command_name = $1', [commandName]);
+        if (exists.rowCount === 0) {
+            return res.status(404).json({ error: 'Unknown command' });
+        }
+
+        await pool.query(
+            `
+            INSERT INTO guild_command_settings (guild_id, command_name, enabled)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (guild_id, command_name)
+            DO UPDATE SET enabled = EXCLUDED.enabled, updated_at = NOW()
+        `,
+            [guildId, commandName, enabled]
+        );
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('[Dashboard] Update command toggle error:', { requestId: req.requestId, error });
+        res.status(500).json({ error: 'Failed to update command', requestId: req.requestId });
     }
 });
 
@@ -1595,11 +1666,66 @@ app.get('/api/discord/guild/:guildId/roles', requireAuth, async (req, res) => {
     }
     
     try {
-        // Parameterized query to prevent SQL injection
-        const result = await pool.query(
+        // Try fetching from DB first
+        let result = await pool.query(
             'SELECT role_id as id, name, color, position, permissions, managed FROM discord_roles WHERE guild_id = $1 ORDER BY position DESC',
             [guildId]
         );
+
+        // If no roles found or explicit refresh requested (optional logic), fetch from Discord API
+        // For now, let's always fetch from API if we have the token, to ensure freshness as requested
+        // But to be efficient, we can only do it if DB is empty or user requests it.
+        // The user complained about colors not updating, so let's FORCE a sync here or fetch directly.
+        // Fetching directly and returning is safer for "correctness".
+        
+        if (process.env.DISCORD_TOKEN) {
+             try {
+                const apiRes = await axios.get(`https://discord.com/api/v10/guilds/${guildId}/roles`, {
+                    headers: {
+                        Authorization: `Bot ${process.env.DISCORD_TOKEN}`
+                    }
+                });
+                
+                // Map API response to expected format
+                const apiRoles = apiRes.data.map(r => ({
+                    id: r.id,
+                    name: r.name,
+                    color: r.color,
+                    position: r.position,
+                    permissions: r.permissions,
+                    managed: r.managed
+                })).sort((a, b) => b.position - a.position);
+
+                // Asynchronously update DB to keep it in sync (fire and forget)
+                // We don't await this to keep response fast, or do we? 
+                // Let's await to ensure no race conditions if multiple requests come in.
+                // Or better: just replace the DB content.
+                // Note: This matches the "pull from Discord API" request.
+                
+                (async () => {
+                   for (const role of apiRoles) {
+                       try {
+                           await pool.query(
+                               `INSERT INTO discord_roles (role_id, guild_id, name, color, position, permissions, managed)
+                                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                                ON CONFLICT (role_id) DO UPDATE SET
+                                name = EXCLUDED.name, color = EXCLUDED.color, position = EXCLUDED.position,
+                                permissions = EXCLUDED.permissions, managed = EXCLUDED.managed, last_updated = NOW()`,
+                               [role.id, guildId, role.name, role.color, role.position, role.permissions, role.managed]
+                           );
+                       } catch (err) {
+                           console.error('Error upserting role during API fetch:', err);
+                       }
+                   }
+                })();
+
+                return res.json(apiRoles);
+            } catch (apiError) {
+                console.error('[Dashboard] Error fetching roles from Discord API:', apiError.message);
+                // Fallback to DB if API fails
+            }
+        }
+
         res.json(result.rows);
     } catch (error) {
         console.error('[Dashboard] Error fetching roles from DB:', error);
@@ -1607,8 +1733,84 @@ app.get('/api/discord/guild/:guildId/roles', requireAuth, async (req, res) => {
     }
 });
 
+app.get('/api/discord/guild/:guildId/bot-member', requireAuth, async (req, res) => {
+    const { guildId } = req.params;
+    if (!isValidSnowflake(guildId)) return res.status(400).json({ error: 'Invalid guild ID' });
+
+    try {
+        if (process.env.DISCORD_TOKEN) {
+            const apiRes = await axios.get(`https://discord.com/api/v10/guilds/${guildId}/members/@me`, {
+                headers: { Authorization: `Bot ${process.env.DISCORD_TOKEN}` }
+            });
+            return res.json(apiRes.data);
+        }
+        res.status(503).json({ error: 'Discord token not available' });
+    } catch (error) {
+        if (error.response && [400, 403, 404].includes(error.response.status)) {
+            // Expected error if bot is not in guild or ID is invalid
+            return res.status(error.response.status).json({ error: 'Bot not found in guild' });
+        }
+        console.error('[Dashboard] Error fetching bot member:', error.message);
+        res.status(500).json({ error: 'Failed to fetch bot member' });
+    }
+});
+
 
 // ==================== ACTIVITY DASHBOARD API ====================
+
+// Get activity overview for dashboard
+app.get('/api/guilds/:guildId/activity', requireAuth, async (req, res) => {
+    try {
+        const { guildId } = req.params;
+        
+        // Get messages in last 24h
+        const messagesResult = await pool.query(
+            `SELECT COALESCE(SUM(message_count), 0)::int as count
+             FROM member_daily_stats
+             WHERE guild_id = $1 AND stat_date >= CURRENT_DATE - INTERVAL '1 day'`,
+            [guildId]
+        );
+        
+        // Get active members today (who sent at least one message)
+        const activeMembersResult = await pool.query(
+            `SELECT COUNT(DISTINCT user_id)::int as count
+             FROM member_daily_stats
+             WHERE guild_id = $1 AND stat_date >= CURRENT_DATE AND message_count > 0`,
+            [guildId]
+        );
+        
+        // Get voice minutes today
+        const voiceResult = await pool.query(
+            `SELECT COALESCE(SUM(vc_minutes), 0)::int as count
+             FROM member_daily_stats
+             WHERE guild_id = $1 AND stat_date >= CURRENT_DATE`,
+            [guildId]
+        );
+        
+        // Get top channels by message count in last 7 days
+        const topChannelsResult = await pool.query(
+            `SELECT channel_id, COUNT(*)::int as message_count
+             FROM guild_events
+             WHERE guild_id = $1 
+               AND event_type = 'message' 
+               AND created_at >= NOW() - INTERVAL '7 days'
+             GROUP BY channel_id
+             ORDER BY message_count DESC
+             LIMIT 5`,
+            [guildId]
+        );
+        
+        res.json({
+            messagesLast24h: messagesResult.rows[0]?.count || 0,
+            activeMembersToday: activeMembersResult.rows[0]?.count || 0,
+            voiceMinutesToday: voiceResult.rows[0]?.count || 0,
+            topChannels: topChannelsResult.rows
+        });
+    } catch (error) {
+        console.error('[Dashboard] Error fetching activity overview:', error);
+        res.status(500).json({ error: 'Failed to fetch activity overview' });
+    }
+});
 
 // Get activity stats for a guild
 app.get('/api/guilds/:guildId/activity/stats', requireAuth, async (req, res) => {
@@ -1889,15 +2091,16 @@ app.delete('/api/guilds/:guildId/leveling/roles/:roleId', requireAuth, async (re
 
 // ==================== SERVE FRONTEND ====================
 
-app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
 // ==================== ERROR HANDLER ====================
 
 app.use((err, req, res, next) => {
     console.error('[Dashboard] Error:', { requestId: req.requestId, err });
     res.status(500).json({ error: 'Internal server error', requestId: req.requestId });
+});
+
+// Serve index.html for all other routes to support SPA client-side routing
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
 // ==================== START SERVER ====================
