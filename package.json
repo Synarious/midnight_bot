@@ -33,7 +33,7 @@
     "date-fns": "^4.1.0",
   "lru-cache": "^10.1.1",
     "discord-api-types": "^0.38.21",
-    "discord.js": "^14.20.0",
+    "discord.js": "^14.25.1",
     "dotenv": "^16.5.0",
     "fuse.js": "^7.1.0",
     "node-cron": "^3.0.3",
